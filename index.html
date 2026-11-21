@@ -1,0 +1,583 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta name="robots" content="noindex, nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.youtube.com; frame-src https://www.youtube.com https://www.youtube-nocookie.com; img-src 'self' data: https://i.ytimg.com; style-src 'self' 'unsafe-inline'; connect-src 'self' http://localhost:8790; object-src 'none'; base-uri 'none'; form-action 'none'">
+<title>YouTube 複数画面</title>
+<style>
+  :root {
+    --bg: #0b0c0e; --bar: #16181b; --line: #2c3036; --text: #f1f2f4; --sub: #9ba2ab;
+    --accent: #ffffff; --btn: #24272c; --btn-h: #33373e; --danger: #e5534b;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    font-family: "Yu Gothic UI", "Meiryo", system-ui, sans-serif; font-size: 13px; overflow: hidden; }
+  button, select, input, textarea { font: inherit; color: var(--text); }
+  button { background: var(--btn); border: 1px solid var(--line); border-radius: 7px; padding: 5px 10px; cursor: pointer; white-space: nowrap; }
+  button:hover { background: var(--btn-h); }
+  button.primary { background: var(--accent); color: #111; border-color: var(--accent); font-weight: 700; }
+  button.primary:hover { background: #dcdcdc; }
+
+  /* ---- 上の帯 ---- */
+  #bar { position: fixed; top: 0; left: 0; right: 0; height: 48px; display: flex; align-items: center; gap: 8px;
+    padding: 0 10px; background: var(--bar); border-bottom: 1px solid var(--line); z-index: 20; }
+  #bar .title { font-weight: 700; white-space: nowrap; }
+  #url { flex: 0 1 360px; min-width: 150px; height: 32px; resize: none; overflow: hidden; white-space: nowrap;
+    background: #0f1113; color: var(--text); border: 1px solid var(--line); border-radius: 7px; padding: 6px 9px; line-height: 18px; }
+  #url::placeholder { color: #6d747d; }
+  #url:focus { outline: none; border-color: #bbb; }
+  #count { color: var(--sub); min-width: 30px; }
+  .sep { width: 1px; height: 26px; background: var(--line); flex: none; }
+  .seg { display: flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; flex: none; }
+  .seg button { border: 0; border-radius: 0; background: var(--btn); }
+  .seg button.on { background: var(--accent); color: #111; font-weight: 700; }
+  .seg button:disabled { opacity: .4; cursor: default; }
+  #hiddenBtn.has { background: var(--accent); color: #111; font-weight: 700; border-color: var(--accent); }
+  .spacer { flex: 1; }
+  #presetSel { background: var(--btn); border: 1px solid var(--line); border-radius: 7px; padding: 5px 6px; max-width: 150px; }
+  body.barHidden #bar { display: none; }
+  #showBar { position: fixed; top: 6px; left: 6px; z-index: 30; opacity: .3; display: none; }
+  #showBar:hover { opacity: 1; }
+  body.barHidden #showBar { display: block; }
+  @media (max-width: 1450px) { .wide { display: none; } }
+  @media (max-width: 760px) {
+    #bar { height: auto; flex-wrap: wrap; padding: 6px max(8px, env(safe-area-inset-right, 0px)) 6px max(8px, env(safe-area-inset-left, 0px)); gap: 6px; }
+    #bar .title, #count, #helpBtn, #fsBtn, #bar .sep, #bar .spacer { display: none; }
+    #url { flex: 1 1 200px; font-size: 16px; }   /* 16px 未満だと iPhone が勝手に拡大する */
+    #bar button { padding: 6px 9px; }
+    #hiddenPop { left: 8px !important; right: 8px; width: auto; }
+    #bar > * { order: 5; }
+    #url { order: 1; } #addBtn { order: 2; } #hideBar { order: 3; }
+    #hideBar .lbl2 { display: none; }
+  }
+
+  /* ---- 隠した画面の一覧 ---- */
+  #hiddenPop { position: fixed; top: 52px; z-index: 35; display: none; background: #1b1e22; border: 1px solid var(--line);
+    border-radius: 10px; padding: 10px; width: 340px; box-shadow: 0 10px 30px rgba(0,0,0,.5); }
+  #hiddenPop.on { display: block; }
+  #hiddenPop h4 { margin: 0 0 8px; font-size: 13px; color: var(--sub); font-weight: 400; }
+  .hrow { display: flex; align-items: center; gap: 10px; padding: 6px; border-radius: 8px; }
+  .hrow:hover { background: #262a30; }
+  .hrow img { width: 96px; height: 54px; object-fit: cover; border-radius: 5px; background: #000; flex: none; }
+  .hrow .t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  #hiddenPop .all { width: 100%; margin-top: 6px; }
+
+  /* ---- 画面 ---- */
+  #stage { position: fixed; top: 48px; left: 0; right: 0; bottom: 0; }
+  body.barHidden #stage { top: 0; }
+  #empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--sub);
+    font-size: 16px; text-align: center; line-height: 2; pointer-events: none; }
+  .tile { position: absolute; background: #000; border-radius: 4px; overflow: hidden; }
+  .tile .frame, .tile iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+  .tile.sounding::after { content: ""; position: absolute; inset: 0; border: 3px solid var(--accent); border-radius: 4px; pointer-events: none; z-index: 3; }
+  body.dragging .tile iframe { pointer-events: none; }
+  body.dragging, body.dragging * { cursor: grabbing !important; user-select: none; }
+  .tile.dropTarget::before { content: ""; position: absolute; inset: 0; background: rgba(255,255,255,.18); border: 3px dashed #fff; z-index: 4; pointer-events: none; }
+  .tile.dragSrc { opacity: .45; }
+
+  .ctl { position: absolute; top: 0; left: 0; right: 0; display: flex; align-items: center; gap: 6px; padding: 6px; z-index: 5; pointer-events: none; }
+  .ctl > * { pointer-events: auto; }
+  .tile:hover .ctl, .tile.sel .ctl { background: linear-gradient(rgba(0,0,0,.88), rgba(0,0,0,.6) 75%, transparent); }
+  .handle { display: flex; align-items: center; gap: 5px; background: rgba(0,0,0,.7); border: 1px solid rgba(255,255,255,.18);
+    border-radius: 7px; padding: 4px 9px; font-weight: 700; font-size: 14px; cursor: grab; user-select: none; touch-action: none; }
+  .handle .grip { font-size: 16px; }
+  .handle .mv { display: none; font-size: 12px; font-weight: 600; margin-left: 2px; }
+  .tile:hover .handle { border-color: #fff; }
+  .tile:hover:not(.small) .handle .mv { display: inline; }
+  .tile.sounding .handle { background: var(--accent); color: #111; border-color: var(--accent); }
+  .rest { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; visibility: hidden; }
+  .tile:hover .rest, .tile.sel .rest { visibility: visible; }
+  .tile.small .rest { flex-wrap: wrap; }
+  .rest button { background: rgba(28,31,35,.95); border-color: rgba(255,255,255,.22); padding: 5px 10px; font-size: 13px; font-weight: 600; }
+  .rest button:hover { background: #3a3f46; }
+  .rest button.on { background: var(--accent); color: #111; border-color: var(--accent); }
+  .rest button.x:hover { background: var(--danger); border-color: var(--danger); }
+  .rest .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #ddd; }
+  .rest input[type=range] { width: 70px; accent-color: #fff; }
+  .tile.tiny .rest .lbl { display: none; }   /* とても小さい画面ではボタンの字を省いてアイコンだけ（字は押す前に出る説明で見られる） */
+  .tile.small .rest button { padding: 4px 7px; font-size: 12px; }
+  .tile.small .rest .name, .tile.small .rest input[type=range] { display: none; }
+  .err { position: absolute; inset: 0; display: none; flex-direction: column; gap: 10px; align-items: center; justify-content: center;
+    background: #111; color: var(--sub); z-index: 2; text-align: center; padding: 20px; }
+  .err a { color: #fff; }
+  .tile.hasErr .err { display: flex; }
+
+  #toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: #2b2f35; border: 1px solid var(--line);
+    padding: 8px 16px; border-radius: 8px; z-index: 40; opacity: 0; transition: opacity .2s; pointer-events: none; }
+  #toast.on { opacity: 1; }
+</style>
+</head>
+<body>
+<div id="bar">
+  <span class="title">▶ 複数画面</span>
+  <textarea id="url" rows="1" placeholder="YouTube の URL を1つ貼って Enter" autocomplete="off" spellcheck="false"></textarea>
+  <button id="addBtn" class="primary">追加</button>
+  <span id="count">0/8</span>
+  <div class="sep"></div>
+  <div class="seg" title="E キーで切りかえ">
+    <button id="layEqual">全部同じ</button><button id="layFocus">1つ大きく</button>
+  </div>
+  <button id="soundAll" title="0 キー">🔇 全部ミュート</button>
+  <button id="hiddenBtn">👁 隠し中 0</button>
+  <div class="spacer"></div>
+  <select id="presetSel" class="wide" title="保存した組み合わせ"><option value="">保存した組み合わせ</option></select>
+  <button id="presetSave" class="wide">保存</button>
+  <button id="presetDel" class="wide">消す</button>
+  <div class="sep wide"></div>
+  <button id="helpBtn" title="キー操作">？</button>
+  <button id="fsBtn">全画面</button>
+  <button id="hideBar" title="帯を隠す（H キー）">▲<span class="lbl2"> 帯を隠す</span></button>
+</div>
+<button id="showBar" title="H キー">☰ 帯を出す</button>
+<div id="hiddenPop"><h4>隠している画面（押すと戻ります）</h4><div id="hiddenRows"></div><button class="all" id="showAllBtn">全部表示する</button></div>
+<div id="stage"><div id="empty"></div></div>
+<div id="toast"></div>
+<div id="fileWarn" style="display:none;position:fixed;inset:0;z-index:100;background:rgba(11,12,14,.97);color:#f1f2f4;align-items:center;justify-content:center;text-align:center;line-height:2;font-size:16px">
+  <div>このファイルを直接開くと、YouTube の決まりで動画が再生できません（エラー 153）。<br>
+  <b>同じフォルダの「起動する.bat」をダブルクリック</b>して開いてください（動いていれば <a href="http://localhost:8790/" style="color:#fff">こちらを押しても開けます</a>）。<br>
+  <span id="fileWarnSub" style="color:#9ba2ab;font-size:13px">サーバーが動いているか確かめています…</span></div>
+</div>
+
+<script>
+// ファイルを直接開いたとき（file://）は YouTube がエラー153で断るので、PC内のサーバーの画面へ移る
+if (location.protocol === 'file:') {
+  document.getElementById('fileWarn').style.display = 'flex';
+  const go = 'http://localhost:8790/';
+  fetch(go, { mode: 'no-cors' }).then(() => location.replace(go)).catch(() => {
+    document.getElementById('fileWarnSub').textContent = 'サーバーが動いていません。「起動する.bat」をダブルクリックすると、自動で正しい画面が開きます。';
+  });
+}
+(() => {
+  const MAX = 8, GAP = 3, KEY = 'ytmulti.state.v1', PKEY = 'ytmulti.presets.v1';
+  const $ = (s) => document.querySelector(s);
+  const stage = $('#stage');
+
+  // ---------- 保存 ----------
+  const load = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v ?? d; } catch { return d; } };
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify({
+    tiles: state.tiles.map(({ key, vid, start, vol, hidden, title }) => ({ key, vid, start, vol, hidden, title })),
+    layout: state.layout, barHidden: state.barHidden })); } catch {} };
+  const okVid = (v) => typeof v === 'string' && /^[\w-]{11}$/.test(v);
+  const okTile = (t) => t && okVid(t.vid);
+  const cleanTile = (t, i) => ({ key: typeof t.key === 'string' && /^[\w]{1,40}$/.test(t.key) ? t.key : newKey(i), vid: t.vid,
+    start: Math.max(0, parseInt(t.start, 10) || 0), vol: Math.min(100, Math.max(0, parseInt(t.vol ?? 100, 10) || 0)),
+    hidden: !!t.hidden, title: typeof t.title === 'string' ? t.title.slice(0, 300) : '', muted: true });   // 開き直したときは全部ミュート
+  const newKey = (i = 0) => 'k' + Date.now().toString(36) + i + Math.random().toString(36).slice(2, 6);
+  const saved = load(KEY, {});
+  const state = {
+    tiles: (Array.isArray(saved.tiles) ? saved.tiles : []).filter(okTile).slice(0, MAX).map(cleanTile),   // 開き直したときは全部ミュート
+    layout: saved.layout === 'equal' ? 'equal' : 'focus',   // 'equal'＝全部同じ／'focus'＝1つ大きく（1番の位置が大）
+    barHidden: !!saved.barHidden,
+  };
+  let presets = (Array.isArray(load(PKEY, [])) ? load(PKEY, []) : []).filter(p => p && typeof p.name === 'string' && Array.isArray(p.tiles));
+  const players = {};
+  let apiReady = false;
+
+  // ---------- URL から動画IDを取る ----------
+  function parse(text) {
+    text = text.trim();
+    if (!text) return null;
+    if (/^[\w-]{11}$/.test(text)) return { vid: text, start: 0 };
+    let u;
+    try { u = new URL(text.startsWith('http') ? text : 'https://' + text); } catch { return null; }
+    const host = u.hostname.replace(/^www\.|^m\./, '');
+    let vid = null;
+    if (host === 'youtu.be') vid = u.pathname.slice(1, 12);
+    else if (host.endsWith('youtube.com') || host === 'youtube-nocookie.com') {
+      if (u.searchParams.get('v')) vid = u.searchParams.get('v');
+      else { const m = u.pathname.match(/^\/(?:live|shorts|embed|v)\/([\w-]{11})/); if (m) vid = m[1]; }
+    }
+    if (!vid || !/^[\w-]{11}$/.test(vid)) return null;
+    const t = u.searchParams.get('t') || u.searchParams.get('start') || '0';
+    let start = 0; const mm = String(t).match(/(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s?)?/);
+    if (/^\d+$/.test(t)) start = +t; else if (mm) start = (+mm[1] || 0) * 3600 + (+mm[2] || 0) * 60 + (+mm[3] || 0);
+    return { vid, start };
+  }
+
+  // ---------- 追加・削除 ----------
+  function addFromInput() {
+    const tokens = $('#url').value.split(/\s+/).filter(Boolean);
+    if (!tokens.length) return;
+    let added = 0, bad = 0, full = false;
+    tokens.forEach((tk, i) => {
+      if (state.tiles.length >= MAX) { full = true; return; }
+      const p = parse(tk);
+      if (!p) { bad++; return; }
+      const t = { key: newKey(i), vid: p.vid, start: p.start, vol: 100, muted: true, hidden: false, title: '' };
+      state.tiles.push(t); makeTile(t); added++;
+    });
+    $('#url').value = '';
+    const msg = [];
+    if (added) msg.push(`${added} 本 追加しました`);
+    if (bad) msg.push(`${bad} 件は動画の URL として読めませんでした（チャンネルの「/live」ではなく、配信そのものの URL を貼ってください）`);
+    if (full) msg.push('8 本までです');
+    if (msg.length) toast(msg.join('　'));
+    render(); save();
+  }
+  function removeTile(key) {
+    const i = state.tiles.findIndex(t => t.key === key); if (i < 0) return;
+    try { players[key]?.destroy(); } catch {}
+    delete players[key];
+    document.getElementById('t-' + key)?.remove();
+    state.tiles.splice(i, 1);
+    render(); save();
+  }
+
+  // ---------- 画面（タイル）を作る ----------
+  function makeTile(t) {
+    const el = document.createElement('div');
+    el.className = 'tile'; el.id = 't-' + t.key;
+    el.innerHTML = `
+      <div class="frame"><div id="p-${t.key}"></div></div>
+      <div class="err"><div class="msg">この動画はここでは再生できません</div><a target="_blank" rel="noopener" href="https://www.youtube.com/watch?v=${t.vid}">YouTube で開く</a></div>
+      <div class="ctl">
+        <span class="handle" title="つかんで、ほかの画面に落とすと場所が入れかわります（押すとボタンが出ます）"><span class="grip">✥</span><span class="num"></span><span class="spk"></span><span class="mv">つかんで移動</span></span>
+        <div class="rest">
+          <button class="snd" title="音のオン/オフ"><span class="ico">🔇</span><span class="lbl"> 音</span></button>
+          <button class="solo" title="この画面だけ鳴らす">🎯<span class="lbl"> これだけ鳴らす</span></button>
+          <input class="vol" type="range" min="0" max="100" value="${t.vol}" title="音量">
+          <span class="name"></span>
+          <button class="bigBtn" title="この画面を大きくする（1番の位置へ）">⭐<span class="lbl"> 大きく表示</span></button>
+          <button class="hide" title="隠す（外さない）">👁<span class="lbl"> 隠す</span></button>
+          <button class="x" title="外す">✕</button>
+        </div>
+      </div>`;
+    stage.appendChild(el);
+    el.querySelector('.snd').onclick = () => setMuted(t.key, !t.muted);
+    el.querySelector('.solo').onclick = () => solo(t.key);
+    el.querySelector('.vol').oninput = (e) => { t.vol = +e.target.value; try { players[t.key]?.setVolume(t.vol); } catch {} save(); };
+    el.querySelector('.bigBtn').onclick = () => makeBig(t.key);
+    el.querySelector('.hide').onclick = () => setHidden(t.key, true);
+    el.querySelector('.x').onclick = () => removeTile(t.key);
+    el.querySelector('.handle').addEventListener('pointerdown', (e) => startDrag(e, t.key));
+    if (apiReady) makePlayer(t);
+  }
+
+  function makePlayer(t) {
+    if (players[t.key]) return;
+    players[t.key] = new YT.Player('p-' + t.key, {
+      host: 'https://www.youtube-nocookie.com',
+      videoId: t.vid, width: '100%', height: '100%',
+      playerVars: { autoplay: t.hidden ? 0 : 1, mute: 1, playsinline: 1, rel: 0, start: t.start || 0, origin: location.origin },
+      events: {
+        onReady: (e) => {
+          const p = e.target;
+          try { p.setVolume(t.vol); t.muted ? p.mute() : p.unMute(); if (!t.hidden) p.playVideo(); } catch {}
+          updateTitle(t);
+        },
+        onStateChange: () => updateTitle(t),
+        onError: (e) => {
+          const el = document.getElementById('t-' + t.key); if (!el) return;
+          const code = e.data;
+          const msg = (code === 101 || code === 150) ? '配信者が埋め込みを許可していないため、ここでは再生できません'
+            : (code === 100 || code === 5) ? '動画が見つからないか、非公開・削除されています'
+            : code === 2 ? 'URL がまちがっているようです'
+            : code === 153 ? 'ファイルを直接開いているため再生できません。「起動する.bat」から開いてください'
+            : `再生できませんでした（コード ${code}）`;
+          el.querySelector('.err .msg').textContent = msg;
+          el.classList.add('hasErr');
+        },
+      },
+    });
+  }
+  function updateTitle(t) {
+    if (t.title) return;
+    try { const d = players[t.key]?.getVideoData?.(); if (d && d.title) { t.title = d.title; render(); save(); } } catch {}
+  }
+
+  // ---------- 音 ----------
+  function setMuted(key, muted, quiet) {
+    const t = state.tiles.find(x => x.key === key); if (!t) return;
+    t.muted = muted;
+    try { const p = players[key]; if (p) { if (muted) p.mute(); else { if (!t.vol) t.vol = 100; p.unMute(); p.setVolume(t.vol); } } } catch {}
+    if (!quiet) { render(); save(); }
+  }
+  function solo(key) { state.tiles.forEach(t => setMuted(t.key, t.key !== key || t.hidden, true)); render(); save(); }
+  const anySounding = () => state.tiles.some(t => !t.muted && !t.hidden);
+  function toggleAllSound() {
+    const mute = anySounding();
+    state.tiles.forEach(t => setMuted(t.key, mute || t.hidden, true));
+    render(); save();
+    toast(mute ? '全部ミュートにしました' : '全部の音を出しました');
+  }
+
+  // ---------- 隠す・大きく・入れかえ ----------
+  function setHidden(key, hidden) {
+    const t = state.tiles.find(x => x.key === key); if (!t) return;
+    t.hidden = hidden;
+    try { const p = players[key]; if (p) hidden ? p.pauseVideo() : p.playVideo(); } catch {}
+    if (hidden && !t.muted) setMuted(key, true, true);
+    render(); save();
+    if (!state.tiles.some(x => x.hidden)) $('#hiddenPop').classList.remove('on');
+  }
+  const visible = () => state.tiles.filter(t => !t.hidden);
+  function swap(a, b) {
+    const i = state.tiles.findIndex(t => t.key === a), j = state.tiles.findIndex(t => t.key === b);
+    if (i < 0 || j < 0 || i === j) return;
+    [state.tiles[i], state.tiles[j]] = [state.tiles[j], state.tiles[i]];
+    render(); save();
+  }
+  // 「大きく」＝その画面を1番の位置へ（今の1番と入れかえ）。全部同じのときは「1つ大きく」に切りかえる
+  function makeBig(key) {
+    const first = visible()[0]; if (first && first.key !== key) swap(first.key, key);
+    if (state.layout !== 'focus') { state.layout = 'focus'; render(); save(); }
+  }
+
+  // ---------- ドラッグで入れかえ ----------
+  let drag = null;
+  function startDrag(e, key) {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    drag = { key, target: null, x: e.clientX, y: e.clientY, moved: false };
+    document.body.classList.add('dragging');
+    document.getElementById('t-' + key)?.classList.add('dragSrc');
+    window.addEventListener('pointermove', onDragMove);
+    window.addEventListener('pointerup', endDrag, { once: true });
+  }
+  function tileAt(x, y) {
+    for (const t of visible()) {
+      const r = document.getElementById('t-' + t.key)?.getBoundingClientRect();
+      if (r && x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return t.key;
+    }
+    return null;
+  }
+  function onDragMove(e) {
+    if (!drag) return;
+    if (Math.abs(e.clientX - drag.x) + Math.abs(e.clientY - drag.y) > 6) drag.moved = true;
+    const k = tileAt(e.clientX, e.clientY);
+    const target = k && k !== drag.key ? k : null;
+    if (target !== drag.target) {
+      if (drag.target) document.getElementById('t-' + drag.target)?.classList.remove('dropTarget');
+      if (target) document.getElementById('t-' + target)?.classList.add('dropTarget');
+      drag.target = target;
+    }
+  }
+  function endDrag() {
+    window.removeEventListener('pointermove', onDragMove);
+    document.body.classList.remove('dragging');
+    document.querySelectorAll('.dropTarget, .dragSrc').forEach(el => el.classList.remove('dropTarget', 'dragSrc'));
+    if (drag && drag.target) swap(drag.key, drag.target);
+    else if (drag && !drag.moved) {   // 押しただけ：その画面のボタンを出す／しまう（スマホ用）
+      const el = document.getElementById('t-' + drag.key), on = !el.classList.contains('sel');
+      document.querySelectorAll('.tile.sel').forEach(x => x.classList.remove('sel'));
+      if (on) el.classList.add('sel');
+    }
+    drag = null;
+  }
+
+  // ---------- 配置の計算 ----------
+  // 全部同じ：16:9 を保って、1枚がいちばん大きくなる段の数を選ぶ
+  function gridRects(n, W, H) {
+    let best = null;
+    for (let r = 1; r <= n; r++) {
+      const c = Math.ceil(n / r);
+      if (c * (r - 1) >= n) continue;
+      const w = Math.min(W / c, (H / r) * 16 / 9);
+      if (!best || w > best.w + 0.5) best = { r, w };
+    }
+    const { r, w } = best, h = w * 9 / 16;
+    const base = Math.floor(n / r), extra = n % r;
+    const rects = []; const y0 = (H - r * h) / 2;
+    for (let row = 0; row < r; row++) {
+      const cnt = base + (row < extra ? 1 : 0);
+      const x0 = (W - cnt * w) / 2;
+      for (let k = 0; k < cnt; k++) rects.push({ x: x0 + k * w, y: y0 + row * h, w, h });
+    }
+    return rects;
+  }
+  function fitW(count, RW, RH) {
+    if (count === 0) return Infinity;
+    if (RW < 1 || RH < 1) return 0;
+    let best = 0;
+    for (let r = 1; r <= count; r++) { const c = Math.ceil(count / r); best = Math.max(best, Math.min(RW / c, (RH / r) * 16 / 9)); }
+    return best;
+  }
+  // 大1つ（左上）＋小 m 枚を「大の右」と「大の下」に同じ大きさで詰める。ratio＝大の横幅÷画面の幅
+  function mainRects(m, W, H, ratio) {
+    const bw = Math.min(W * ratio, H * 16 / 9), bh = bw * 9 / 16;
+    let best = null;
+    for (const shape of [1, 2]) {
+      const R = { x: bw, y: 0, w: W - bw, h: shape === 1 ? H : bh };
+      const B = { x: 0, y: bh, w: shape === 1 ? bw : W, h: H - bh };
+      for (let k = m; k >= 0; k--) {
+        const s = Math.min(fitW(k, R.w, R.h), fitW(m - k, B.w, B.h), bw * 0.7);
+        if (s > 0 && s !== Infinity && (!best || s > best.s + 0.5)) best = { s, k, R, B };
+      }
+    }
+    const out = [{ x: 0, y: 0, w: bw, h: bh }];
+    if (best) {
+      const { s, k, R, B } = best, sh = s * 9 / 16;
+      const place = (cnt, reg, center) => {
+        const cols = Math.max(1, Math.floor(reg.w / s + 1e-6));
+        for (let i = 0; i < cnt; i++) {
+          const row = Math.floor(i / cols), inRow = Math.min(cols, cnt - row * cols);
+          const off = center ? (reg.w - inRow * s) / 2 : 0;
+          out.push({ x: reg.x + off + (i % cols) * s, y: reg.y + row * sh, w: s, h: sh });
+        }
+      };
+      place(k, R, false); place(m - k, B, true);
+    }
+    const maxX = Math.max(...out.map(r => r.x + r.w)), maxY = Math.max(...out.map(r => r.y + r.h));
+    const dx = Math.max(0, (W - maxX) / 2), dy = Math.max(0, (H - maxY) / 2);
+    return out.map(r => ({ ...r, x: r.x + dx, y: r.y + dy }));
+  }
+  // 1つ大きく：枚数ごとの基準の比率（16:9 でぴったり埋まる形）から始め、窓の形に合わせて
+  // 「画面をよく使えて、大が小の2〜3倍の幅」になる比率を自動で選ぶ
+  const BASE_RATIO = { 3: .67, 4: .75, 5: .75, 6: .67, 7: .75, 8: .75 };
+  const focusCache = new Map();
+  function focusRects(n, W, H) {
+    if (W < H) return mainRects(n - 1, W, H, 1);   // 縦長：大を横いっぱいに、小はその下へ
+    const ck = `${n}:${Math.round(W)}:${Math.round(H)}`;
+    let ratio = focusCache.get(ck);
+    if (ratio === undefined) {
+      const cover = (rs) => rs.reduce((s, r) => s + r.w * r.h, 0) / (W * H);
+      const base = BASE_RATIO[n] ?? .7;
+      let bestR = base, bestC = cover(mainRects(n - 1, W, H, base));
+      for (let p = 50; p <= 85; p++) {
+        const rs = mainRects(n - 1, W, H, p / 100), q = rs[1].w / rs[0].w, c = cover(rs);
+        if (q < 0.32 || q > 0.55) continue;
+        if (c > bestC + 0.03) { bestC = c; bestR = p / 100; }
+      }
+      ratio = bestR; focusCache.set(ck, ratio);
+    }
+    return mainRects(n - 1, W, H, ratio);
+  }
+  const isFocus = (n) => state.layout === 'focus' && n >= 3;   // 2枚以下は常に同じ大きさ
+
+  // ---------- 描く ----------
+  function render() {
+    document.body.classList.toggle('barHidden', state.barHidden);
+    stage.style.top = state.barHidden ? '0px' : $('#bar').offsetHeight + 'px';
+    $('#hiddenPop').style.top = ($('#bar').offsetHeight + 4) + 'px';
+    const W = stage.clientWidth, H = stage.clientHeight;
+    const vis = visible(), n = vis.length, focus = isFocus(n);
+    const rects = n === 1 ? [{ x: 0, y: 0, w: W, h: H }] : !n ? [] : focus ? focusRects(n, W, H) : gridRects(n, W, H);
+
+    state.tiles.forEach(t => {
+      const el = document.getElementById('t-' + t.key); if (!el) return;
+      if (t.hidden) { el.style.display = 'none'; return; }
+      const i = vis.indexOf(t), r = rects[i];
+      const w = Math.max(0, r.w - GAP * 2), h = Math.max(0, r.h - GAP * 2);
+      Object.assign(el.style, { display: 'block', left: (r.x + GAP) + 'px', top: (r.y + GAP) + 'px', width: w + 'px', height: h + 'px' });
+      el.classList.toggle('sounding', !t.muted);
+      el.classList.toggle('small', w < 620);
+      el.classList.toggle('tiny', w < 300);
+      el.querySelector('.num').textContent = i + 1;
+      el.querySelector('.spk').textContent = t.muted ? '' : '🔊';
+      el.querySelector('.snd .ico').textContent = t.muted ? '🔇' : '🔊';
+      el.querySelector('.snd').classList.toggle('on', !t.muted);
+      el.querySelector('.name').textContent = t.title || '';
+      el.querySelector('.bigBtn').style.display = n < 3 || (focus && i === 0) ? 'none' : '';
+    });
+
+    $('#empty').style.display = n ? 'none' : 'flex';
+    $('#empty').innerHTML = state.tiles.length && !n
+      ? 'ぜんぶ隠しています。上の「👁 隠し中」から戻せます'
+      : '上の欄に YouTube の URL を貼って「追加」<br>（最大 8 画面まで）';
+    $('#count').textContent = `${state.tiles.length}/${MAX}`;
+    $('#layEqual').classList.toggle('on', !focus);
+    $('#layFocus').classList.toggle('on', focus);
+    $('#layFocus').disabled = n < 3;
+    $('#layFocus').title = n < 3 ? '3画面以上のときに使えます' : '1番の位置の画面を大きく（E キー）';
+    $('#soundAll').textContent = anySounding() ? '🔇 全部ミュート' : '🔊 全部鳴らす';
+    const hid = state.tiles.filter(t => t.hidden);
+    $('#hiddenBtn').textContent = `👁 隠し中 ${hid.length}`;
+    $('#hiddenBtn').classList.toggle('has', hid.length > 0);
+    const rows = $('#hiddenRows'); rows.innerHTML = '';
+    if (!hid.length) rows.innerHTML = '<div style="color:#9ba2ab;padding:6px">隠している画面はありません。各画面の「👁 隠す」で隠せます。</div>';
+    hid.forEach(t => {
+      const d = document.createElement('div'); d.className = 'hrow';
+      d.innerHTML = `<img src="https://i.ytimg.com/vi/${t.vid}/mqdefault.jpg" alt=""><div class="t"></div><button class="primary">表示する</button>`;
+      d.querySelector('.t').textContent = t.title || t.vid;
+      d.querySelector('button').onclick = () => setHidden(t.key, false);
+      rows.appendChild(d);
+    });
+    $('#showAllBtn').style.display = hid.length > 1 ? '' : 'none';
+  }
+
+  // ---------- 保存した組み合わせ ----------
+  const esc = (v) => String(v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  function renderPresets() {
+    $('#presetSel').innerHTML = '<option value="">保存した組み合わせ</option>' +
+      presets.map((p, i) => `<option value="${i}">${esc(p.name)}（${p.tiles.length}）</option>`).join('');
+  }
+  const savePresets = () => { try { localStorage.setItem(PKEY, JSON.stringify(presets)); } catch {} };
+  $('#presetSave').onclick = () => {
+    if (!state.tiles.length) return toast('保存する画面がありません');
+    const name = prompt('この組み合わせの名前（例：大会A 4画面）');
+    if (!name) return;
+    const data = { name, layout: state.layout, tiles: state.tiles.map(({ vid, start, title, hidden }) => ({ vid, start, title, hidden })) };
+    const i = presets.findIndex(p => p.name === name);
+    if (i >= 0) presets[i] = data; else presets.push(data);
+    savePresets(); renderPresets(); toast(`「${name}」を保存しました`);
+  };
+  $('#presetSel').onchange = (e) => {
+    const p = presets[e.target.value]; e.target.value = ''; if (!p) return;
+    [...state.tiles].forEach(t => removeTile(t.key));
+    p.tiles.filter(okTile).slice(0, MAX).forEach((x, i) => {
+      const t = cleanTile({ ...x, key: newKey(i), vol: 100 }, i);
+      state.tiles.push(t); makeTile(t);
+    });
+    if (p.layout) state.layout = p.layout;
+    render(); save(); toast(`「${p.name}」を開きました`);
+  };
+  $('#presetDel').onclick = () => {
+    if (!presets.length) return toast('保存した組み合わせはありません');
+    const name = prompt('消す組み合わせの名前を入れてください：\n' + presets.map(p => '・' + p.name).join('\n'));
+    if (!name) return;
+    const i = presets.findIndex(p => p.name === name.trim());
+    if (i < 0) return toast('その名前は見つかりませんでした');
+    presets.splice(i, 1); savePresets(); renderPresets(); toast(`「${name}」を消しました`);
+  };
+
+  // ---------- そのほかの操作 ----------
+  let toastTimer;
+  function toast(s, ms = 3500) { const el = $('#toast'); el.textContent = s; el.classList.add('on'); clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('on'), ms); }
+  const setLayout = (l) => { state.layout = l; render(); save(); };
+  const toggleBar = () => { state.barHidden = !state.barHidden; render(); save(); };
+  $('#addBtn').onclick = addFromInput;
+  $('#url').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); addFromInput(); } });
+  $('#layEqual').onclick = () => setLayout('equal');
+  $('#layFocus').onclick = () => setLayout('focus');
+  $('#soundAll').onclick = toggleAllSound;
+  $('#hiddenBtn').onclick = (e) => {
+    const pop = $('#hiddenPop'), r = e.currentTarget.getBoundingClientRect();
+    pop.style.left = Math.min(r.left, innerWidth - 350) + 'px';
+    pop.classList.toggle('on');
+  };
+  $('#showAllBtn').onclick = () => state.tiles.filter(t => t.hidden).forEach(t => setHidden(t.key, false));
+  document.addEventListener('pointerdown', (e) => {
+    if (!e.target.closest('#hiddenPop') && !e.target.closest('#hiddenBtn')) $('#hiddenPop').classList.remove('on');
+  });
+  $('#helpBtn').onclick = () => toast('1〜8：その画面だけ鳴らす　0：全部ミュート/全部鳴らす　E：全部同じ/1つ大きく　H：帯を隠す　画面の左上の ✥ をつかんでほかの画面に落とすと入れかえ', 7000);
+  $('#hideBar').onclick = toggleBar;
+  $('#showBar').onclick = toggleBar;
+  $('#fsBtn').onclick = () => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
+  window.addEventListener('resize', render);
+
+  document.addEventListener('keydown', (e) => {
+    if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName) || e.ctrlKey || e.altKey || e.metaKey) return;
+    if (/^[1-8]$/.test(e.key)) { const t = visible()[+e.key - 1]; if (t) solo(t.key); }
+    else if (e.key === '0') toggleAllSound();
+    else if (e.key === 'e' || e.key === 'E') setLayout(state.layout === 'focus' ? 'equal' : 'focus');
+    else if (e.key === 'h' || e.key === 'H') toggleBar();
+    else if (e.key === 'Escape') $('#hiddenPop').classList.remove('on');
+  });
+  // 動画を押すとキーが YouTube 側に取られるので、すぐこちらに戻す（数字キーで切りかえられるように）
+  window.addEventListener('blur', () => setTimeout(() => {
+    if (document.activeElement && document.activeElement.tagName === 'IFRAME') { document.activeElement.blur(); window.focus(); }
+  }, 0));
+
+  // ---------- 始める ----------
+  state.tiles.forEach(makeTile);
+  renderPresets(); render();
+  window.onYouTubeIframeAPIReady = () => { apiReady = true; state.tiles.forEach(makePlayer); };
+  const s = document.createElement('script'); s.src = 'https://www.youtube.com/iframe_api'; document.head.appendChild(s);
+  window.__ytmulti = { state, players, render, swap, focusRects, gridRects };   // 確かめ用
+})();
+</script>
+</body>
+</html>
