@@ -22,8 +22,8 @@
   button.primary:hover { background: #dcdcdc; }
 
   /* ---- 上の帯 ---- */
-  #bar { position: fixed; top: 0; left: 0; right: 0; height: 48px; display: flex; align-items: center; gap: 8px;
-    padding: 0 10px; background: var(--bar); border-bottom: 1px solid var(--line); z-index: 20; }
+  #bar { position: fixed; top: 0; left: 0; right: 0; min-height: 48px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+    padding: 7px 10px; background: var(--bar); border-bottom: 1px solid var(--line); z-index: 20; }
   #bar .title { font-weight: 700; white-space: nowrap; }
   #url { flex: 0 1 360px; min-width: 150px; height: 32px; resize: none; overflow: hidden; white-space: nowrap;
     background: #0f1113; color: var(--text); border: 1px solid var(--line); border-radius: 7px; padding: 6px 9px; line-height: 18px; }
@@ -42,7 +42,7 @@
   #showBar { position: fixed; top: 6px; left: 6px; z-index: 30; opacity: .3; display: none; }
   #showBar:hover { opacity: 1; }
   body.barHidden #showBar { display: block; }
-  @media (max-width: 1450px) { .wide { display: none; } }
+  @media (max-width: 1450px) { #hideBar .lbl2 { display: none; } #url { flex-basis: 240px; } #bar .title { display: none; } }
   @media (max-width: 760px) {
     #bar { height: auto; flex-wrap: wrap; padding: 6px max(8px, env(safe-area-inset-right, 0px)) 6px max(8px, env(safe-area-inset-left, 0px)); gap: 6px; }
     #bar .title, #count, #helpBtn, #fsBtn, #bar .sep, #bar .spacer { display: none; }
@@ -56,7 +56,7 @@
 
   /* ---- 隠した画面の一覧 ---- */
   #hiddenPop { position: fixed; top: 52px; z-index: 35; display: none; background: #1b1e22; border: 1px solid var(--line);
-    border-radius: 10px; padding: 10px; width: 340px; box-shadow: 0 10px 30px rgba(0,0,0,.5); }
+    border-radius: 10px; padding: 10px; width: 340px; max-height: calc(100vh - 70px); overflow-y: auto; box-shadow: 0 10px 30px rgba(0,0,0,.5); }
   #hiddenPop.on { display: block; }
   #hiddenPop h4 { margin: 0 0 8px; font-size: 13px; color: var(--sub); font-weight: 400; }
   .hrow { display: flex; align-items: center; gap: 10px; padding: 6px; border-radius: 8px; }
@@ -99,7 +99,9 @@
   .rest input[type=range] { width: 70px; accent-color: #fff; }
   .tile.tiny .rest .lbl { display: none; }   /* とても小さい画面ではボタンの字を省いてアイコンだけ（字は押す前に出る説明で見られる） */
   .tile.small .rest button { padding: 4px 7px; font-size: 12px; }
-  .tile.small .rest .name, .tile.small .rest input[type=range] { display: none; }
+  .tile.small .rest .name, .tile.tiny .rest input[type=range] { display: none; }
+  .tile.small .rest input[type=range] { width: 56px; }
+  @media (pointer: coarse) { .rest button, .tile.small .rest button { min-height: 38px; padding: 6px 10px; } .handle { min-height: 38px; } }
   .err { position: absolute; inset: 0; display: none; flex-direction: column; gap: 10px; align-items: center; justify-content: center;
     background: #111; color: var(--sub); z-index: 2; text-align: center; padding: 20px; }
   .err a { color: #fff; }
@@ -168,7 +170,8 @@ if (location.protocol === 'file:') {
   const newKey = (i = 0) => 'k' + Date.now().toString(36) + i + Math.random().toString(36).slice(2, 6);
   const saved = load(KEY, {});
   const state = {
-    tiles: (Array.isArray(saved.tiles) ? saved.tiles : []).filter(okTile).slice(0, MAX).map(cleanTile),   // 開き直したときは全部ミュート
+    tiles: (Array.isArray(saved.tiles) ? saved.tiles : []).filter(okTile).slice(0, MAX).map(cleanTile)
+      .map((t, i, arr) => arr.findIndex(x => x.key === t.key) < i ? { ...t, key: newKey(i) } : t),   // 同じ key が2つあれば作り直す
     layout: saved.layout === 'equal' ? 'equal' : 'focus',   // 'equal'＝全部同じ／'focus'＝1つ大きく（1番の位置が大）
     barHidden: !!saved.barHidden,
   };
@@ -185,9 +188,9 @@ if (location.protocol === 'file:') {
     try { u = new URL(text.startsWith('http') ? text : 'https://' + text); } catch { return null; }
     const host = u.hostname.replace(/^www\.|^m\./, '');
     let vid = null;
-    if (host === 'youtu.be') vid = u.pathname.slice(1, 12);
-    else if (host.endsWith('youtube.com') || host === 'youtube-nocookie.com') {
-      if (u.searchParams.get('v')) vid = u.searchParams.get('v');
+    if (host === 'youtu.be') { const m = u.pathname.match(/^\/([\w-]{11})\/?$/); if (m) vid = m[1]; }
+    else if (host === 'youtube.com' || host.endsWith('.youtube.com') || host === 'youtube-nocookie.com') {
+      if (u.searchParams.get('v') && u.pathname === '/watch') vid = u.searchParams.get('v');
       else { const m = u.pathname.match(/^\/(?:live|shorts|embed|v)\/([\w-]{11})/); if (m) vid = m[1]; }
     }
     if (!vid || !/^[\w-]{11}$/.test(vid)) return null;
@@ -265,7 +268,7 @@ if (location.protocol === 'file:') {
       events: {
         onReady: (e) => {
           const p = e.target;
-          try { p.setVolume(t.vol); t.muted ? p.mute() : p.unMute(); if (!t.hidden) p.playVideo(); } catch {}
+          try { p.setVolume(t.vol); t.muted ? p.mute() : p.unMute(); t.hidden ? p.pauseVideo() : p.playVideo(); } catch {}   // 準備中に隠されたものも止める
           updateTitle(t);
         },
         onStateChange: () => updateTitle(t),
@@ -452,6 +455,7 @@ if (location.protocol === 'file:') {
     document.body.classList.toggle('barHidden', state.barHidden);
     stage.style.top = state.barHidden ? '0px' : $('#bar').offsetHeight + 'px';
     $('#hiddenPop').style.top = ($('#bar').offsetHeight + 4) + 'px';
+    $('#hiddenPop').style.maxHeight = Math.max(160, innerHeight - $('#bar').offsetHeight - 14) + 'px';   // 小さい画面でも最後の「表示する」まで届く
     const W = stage.clientWidth, H = stage.clientHeight;
     const vis = visible(), n = vis.length, focus = isFocus(n);
     const rects = n === 1 ? [{ x: 0, y: 0, w: W, h: H }] : !n ? [] : focus ? focusRects(n, W, H) : gridRects(n, W, H);
