@@ -149,6 +149,15 @@
   .sgCol { display: flex; flex-direction: column; width: 17em; flex: none; }
   .sgColH { color: #b4bac1; font-size: 1em; font-weight: 700; text-align: center; padding: 0 0 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .sgSets { flex: 1; display: flex; flex-direction: column; justify-content: space-around; gap: 10px; }
+  /* 16人以下の勝者側・敗者側のある表は1枚に：勝者側を上・敗者側を下・GF を右端（2026-11-22 本人「トップ8からは…分けずに」「一つの画面にまとめて」「16人以下」）。箱は引き伸ばさず詰める */
+  .sgCanvas.one { min-height: 0; }
+  .sgCanvas.one { gap: 14px; }
+  .sgCanvas.one .sgCol { width: var(--cw, 12em); }
+  .sgCanvas.one .sgSets { gap: 6px; }
+  .sgCanvas.one .sgCol.gf .sgSets { justify-content: center; gap: 14px; }   /* GF とリセットは右端の1列に縦に並べ、上下の真ん中に（横幅を1列ぶん詰める） */
+  .sgHalves { display: flex; flex-direction: column; gap: 10px; }
+  .sgHalf { display: flex; gap: 14px; }
+  .sgHalf + .sgHalf { border-top: 1px dashed #3a3f46; padding-top: 8px; }
   .sgLines { position: absolute; left: 0; top: 0; pointer-events: none; overflow: visible; }
   .sgLines path { fill: none; stroke: #5a616a; stroke-width: 1.5; }
   .sgCol { position: relative; z-index: 1; }
@@ -835,7 +844,7 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
     const body = box.querySelector('.sgBody');
     // ctrl＋ホイールで拡大・縮小／マウスでつかんで動かす（入力欄やボタンの上は除く）
     let lineRaf = 0;   // サイドバーの幅・高さが変わったら線を引き直す（試合の位置が動くため）
-    new ResizeObserver(() => { cancelAnimationFrame(lineRaf); lineRaf = requestAnimationFrame(() => sgLines(tileEl(t.key))); }).observe(body);
+    new ResizeObserver(() => { cancelAnimationFrame(lineRaf); lineRaf = requestAnimationFrame(() => { const el = tileEl(t.key); sgFit(el, t); sgLines(el); }); }).observe(body);   // 1枚の表は縮め直してから線を引く
     body.addEventListener('wheel', (e) => { if (!e.ctrlKey || !sgOf(t.key).sets) return; e.preventDefault(); sgZoom(t, e.deltaY < 0 ? 0.1 : -0.1); }, { passive: false });
     body.addEventListener('pointerdown', (e) => {
       if (e.pointerType !== 'mouse' || e.button !== 0 || !body.classList.contains('canPan') || e.target.closest('button, input, select, a, textarea')) return;
@@ -1123,7 +1132,10 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
     cv.querySelectorAll('.sgRow[data-src]').forEach(row => {
       const sb = boxes.get(row.dataset.src); if (!sb) return;
       const a = sb.getBoundingClientRect(), b = row.getBoundingClientRect();
-      if (b.left <= a.right) return;
+      if (b.left <= a.right) {   // 1枚の表の GF → リセット（同じ列の下の箱）：箱の右から出て、下の箱の行の右へ戻る（Codex 指摘）
+        if (Math.abs(b.left - a.left) < 2 && b.top >= a.bottom) { const x1 = +X(a.right), xr = (x1 + 10).toFixed(1); d.push(`M${x1} ${Y(a.top + a.height / 2)}H${xr}V${Y(b.top + b.height / 2)}H${X(b.right)}`); }
+        return;
+      }
       const x1 = +X(a.right), y1 = +Y(a.top + a.height / 2), x2 = +X(b.left), y2 = +Y(b.top + b.height / 2), mx = (x1 + (x2 - x1) / 2).toFixed(1);
       d.push(`M${x1} ${y1}H${mx}V${y2}H${x2}`);
     });
@@ -1136,7 +1148,7 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
   const seedTxt = (n) => Number.isFinite(n) ? String(n) : '';
   // 試合の箱。o＝{ find, info（sgBracket）, dest：行き先を出す, proj：予想を出す }
   function sgSetHtml(x, o) {
-    const { find, info, dest, proj } = o;
+    const { find, info, dest, proj, one } = o;
     const live = x.state === 2 || x.state === 6;
     const names = (x.slots || []).map(sl => (sl?.entrant || sl?.seed?.entrant)?.name || '');
     const hit = find && names.some(n => n.toLowerCase().includes(find));
@@ -1164,7 +1176,7 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
       else if (proj && pr[i]) nm = `<span class="nm proj" title="${from[i] ? esc(who(from[i])) : `予想：${esc(pr[i].en.name || '')}`}">${sd}${esc(pr[i].en.name)}</span>`;
       else nm = `<span class="nm"${dest && !reset && from[i] ? ` title="${esc(who(from[i]))}"` : ''}>${dest && reset ? '（リセットのときだけ）' : dest && from[i] ? esc(fromTxt(from[i])) : '未定'}</span>`;
       const f = from[i], line = reset ? i === 0 && f?.set && !!(info.pair(x)[0] || info.pair(x)[1])   // リセットは1本だけ・行われるときだけ（Codex 指摘）
-        : f?.set && !f.lose && (f.set.round > 0) === (x.round > 0);   // 同じ側で勝った人が進むときだけ線を引く
+        : f?.set && !f.lose && ((f.set.round > 0) === (x.round > 0) || (one && f.set.round < 0 && x.round > 0));   // 同じ側で勝った人が進むときだけ線を引く（1枚の表では敗者側の決勝 → GF も）
       return `<div class="sgRow${win ? ' win' : ''}${en ? '' : ' tbd'}"${line ? ` data-src="${esc(f.set.id)}"` : ''}>${nm}<span class="sc">${esc(scoreText(sl))}</span></div>`;
     }).join('');
     let meta = '';
@@ -1197,8 +1209,35 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
       if (keep) { body.scrollLeft = sl; body.scrollTop = st; }
       else if ((t.sgFind || '').trim()) body.querySelector('.sgSet.hit')?.scrollIntoView({ block: 'center', inline: 'center' });
     }
-    if (view.table) sgLines(el);
+    if (view.table) { sgFit(el, t); sgLines(el); }
     sgRestoreFocus(el, focus);
+  }
+  // 1枚の表が入りきらないときは自動で縮める（2026-11-22 本人「いや、ちじめるで」）。本人が決めた拡大より大きくはしない。
+  // 字は画面の上で 10px 未満にしない（--fs）ので、それでも入らなければスクロールで見る
+  function sgFit(el, t) {
+    const body = el?.querySelector('.sgBody'), cv = body?.querySelector('.sgCanvas.one'); if (!cv) return;
+    const apply = (z) => { cv.style.zoom = z; cv.style.setProperty('--fs', Math.max(11, Math.ceil(1000 / z) / 100) + 'px'); cv.style.setProperty('--fm', Math.ceil(1000 / z) / 100 + 'px'); };
+    let z = Math.min(1.6, Math.max(0.5, +t.sgZoom || 1));
+    cv.style.removeProperty('--cw'); apply(z);   // 幅を広げたときは元の大きさから測り直す
+    if (z > 1) return;   // ＋で大きくしたときはその大きさのまま（はみ出た分はスクロール）。縮めるのは 1 以下のときだけ
+    const cs = getComputedStyle(body), br = body.getBoundingClientRect();
+    const aw = body.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    const ah = body.clientHeight - parseFloat(cs.paddingBottom) - (cv.getBoundingClientRect().top - br.top - body.clientTop + body.scrollTop);
+    if (aw <= 0 || ah <= 0) return;
+    const ratio = () => { const r = cv.getBoundingClientRect(); return Math.min((aw - 2) / r.width, (ah - 2) / r.height); };   // 2px のゆとり（端数で 1px だけはみ出してスクロールが出ないように）
+    const shrink = (minZ) => {
+      for (let i = 0; i < 30; i++) {   // 字が 10px で止まると縮み方がゆるやかになるので、少し強めに縮めて回数も多めに
+        const q = ratio(); if (q >= 0.999) return true;
+        const nz = Math.max(minZ, Math.floor(z * q * q * q * 1000) / 1000);
+        if (nz >= z - 0.001) return false;
+        z = nz; apply(z);
+      }
+      return ratio() >= 0.999;
+    };
+    // ① 字が 10px になるところまで全体を縮める → ② 列の幅を細くする（名前は … で切れ、カーソルで全部見える）→ ③ すき間・枠をさらに縮める
+    if (shrink(Math.min(z, 10 / 11))) return;
+    for (const cw of [11, 10, 9]) { cv.style.setProperty('--cw', cw + 'em'); if (ratio() >= 0.999) return; }
+    shrink(0.5);
   }
   const sgSourceHtml = (t) => `データ：<a href="${esc(t.slug ? `https://www.start.gg/${t.slug}${t.sgPhase && t.sgGroup ? `/brackets/${t.sgPhase}/${t.sgGroup}` : ''}` : 'https://www.start.gg/')}" target="_blank" rel="noopener">start.gg</a>`;
   // 打っている欄を覚える・戻す
@@ -1252,10 +1291,16 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
     const sets = s.sets || [];
     const dbl = sets.some(x => x.round < 0);
     const rr = s.bt === 'ROUND_ROBIN' || s.bt === 'SWISS';
-    const side = dbl ? t.sgSide : 'w';
+    // 1枚にするか：勝者側・敗者側があって、このプールの選手が16人以下（本人 11/22「16人以下」）。選手が読めないときは試合の数（16人の両側は30〜31試合）で見る
+    // 試合の数も見る（一部の選手しか読めない17人以上の表を1枚にしないように・Codex 指摘）。同じ人をシードの番号と選手で二重に数えない
+    const players = new Set(), seedEn = new Map();
+    sets.forEach(x => (x.slots || []).forEach(sl => { const en = sl?.entrant || sl?.seed?.entrant; if (en?.id != null && +sl?.seed?.seedNum > 0) seedEn.set(+sl.seed.seedNum, en.id); }));
+    sets.forEach(x => (x.slots || []).forEach(sl => { const en = sl?.entrant || sl?.seed?.entrant, n = +sl?.seed?.seedNum; if (en?.id != null) players.add('e' + en.id); else if (n > 0) players.add(seedEn.has(n) ? 'e' + seedEn.get(n) : 's' + n); }));
+    const one = dbl && !rr && sets.length <= 31 && players.size <= 16;
+    const side = dbl && !one ? t.sgSide : 'w';
     const phSel = phs.length > 1 ? `<select class="ph" title="フェーズ">${phs.map(p => `<option value="${esc(p.id)}"${String(p.id) === t.sgPhase ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}</select>` : '';
     const pgSel = gs.length > 1 ? `<button data-act="pgPrev" title="前のプール（← キー）">◀</button><select class="pg" title="プール">${gs.map(g => `<option value="${esc(g.id)}"${String(g.id) === t.sgGroup ? ' selected' : ''}>プール ${esc(g.displayIdentifier)}${g.state === 2 ? '（進行中）' : g.state === 3 ? '（終了）' : ''}</option>`).join('')}</select><button data-act="pgNext" title="次のプール（→ キー）">▶</button>` : '';
-    const sideSeg = dbl && !rr ? `<div class="seg"><button data-act="side" data-side="w" class="${side === 'w' ? 'on' : ''}">勝者側</button><button data-act="side" data-side="l" class="${side === 'l' ? 'on' : ''}">敗者側</button></div>` : '';
+    const sideSeg = dbl && !rr && !one ? `<div class="seg"><button data-act="side" data-side="w" class="${side === 'w' ? 'on' : ''}">勝者側</button><button data-act="side" data-side="l" class="${side === 'l' ? 'on' : ''}">敗者側</button></div>` : '';
     const find = (t.sgFind || '').trim().toLowerCase();
     // 行き先・予想の切りかえ（総当たりでは出さない）
     const dest = !rr, proj = !rr && !!t.sgProj;   // 行き先はいつも出す（本人 11/22「常に表示しといて」）
@@ -1269,9 +1314,20 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
     const fsN = Math.max(11, Math.ceil(1000 / zoom) / 100);   // ふつうは 11px（2026-11-22 本人「フォントがちょっと大きく感じる」）・縮めても、画面の上で字が 10px を下回らないように
     const fmN = Math.ceil(1000 / zoom) / 100;   // 切り上げ（丸めで 9.99px にならないように・Codex 指摘）   // 小さい字（記号・シード）も画面の上で 10px を下回らないように
     const colH = Math.max(1, ...cols.map(c => c.length)) * (Math.max(54, Math.round(fsN * 3.9 + 12)) + (dest ? Math.round(Math.max(fmN, fsN * 0.85) * 1.5) : 0));   // 1試合（2行＋上の行）ぶんの高さ＋すき間
-    const o = { find, dest, proj, info: dest || proj ? sgBracket(sets) : null };
+    const o = { find, dest, proj, one, info: dest || proj ? sgBracket(sets) : null };
     const legend = !proj ? '' : o.info.noSeed ? '<div class="sgLegend">斜めの薄い字＝予想（シードが読めなかったため、上の枠の人が勝ち進んだとき）</div>'
       : '<div class="sgLegend">斜めの薄い字＝予想（シードが上の人が勝ち進んだとき）・名前の前の数字＝シード</div>';
+    if (one) {   // 勝者側を上・敗者側を下・GF（とリセット）を右端。各段は、いちばん試合の多い列の高さで詰める（min-height を付けない）
+      const colHtml = (c, gf) => `<div class="sgCol${gf ? ' gf' : ''}"><div class="sgColH" title="${esc(c[0]?.fullRoundText || '')}">${esc(c[0]?.fullRoundText || '')}</div><div class="sgSets">${c.map(x => sgSetHtml(x, o)).join('')}</div></div>`;
+      // GF：名前が Grand Final／リセットの試合、または勝者側で敗者側の試合から人が来る試合、とそのリセット（列の位置ではなく試合ごとに見る・Codex 指摘）
+      const byId = o.info.byId, fromLosers = (x) => (x.slots || []).some(sl => sl?.prereqType === 'set' && byId.get(String(sl.prereqId))?.round < 0);
+      const gfIds = new Set(sets.filter(x => x.round > 0 && (/^GF/.test(sgRoundAbbr(x)) || fromLosers(x))).map(x => String(x.id)));
+      sets.forEach(x => { if (x.round > 0 && o.info.isReset(x) && gfIds.has(String(x.slots[0].prereqId))) gfIds.add(String(x.id)); });
+      const gfSets = sets.filter(x => gfIds.has(String(x.id))).sort((a, b) => a.round - b.round);
+      const wCols = sgColumns(sets.filter(x => !gfIds.has(String(x.id))), 'w'), lCols = sgColumns(sets, 'l');
+      const body1 = warn + legend + `<div class="sgCanvas one${proj ? ' withSeed' : ''}" style="zoom:${zoom};--fs:${fsN}px;--fm:${fmN}px"><div class="sgHalves"><div class="sgHalf">${wCols.map(c => colHtml(c)).join('')}</div><div class="sgHalf">${lCols.map(c => colHtml(c)).join('')}</div></div>${gfSets.length ? colHtml(gfSets, true) : ''}</div>`;
+      return { bar, body: body1, table: true };
+    }
     const body = warn + legend + `<div class="sgCanvas${proj ? ' withSeed' : ''}" style="zoom:${zoom};--fs:${fsN}px;--fm:${fmN}px">${cols.map(c => `<div class="sgCol"><div class="sgColH" title="${esc(c[0]?.fullRoundText || '')}">${esc(c[0]?.fullRoundText || '')}</div><div class="sgSets" style="min-height:${colH}px">${c.map(x => sgSetHtml(x, o)).join('')}</div></div>`).join('')}</div>`;
     return { bar, body, table: true };
   }
