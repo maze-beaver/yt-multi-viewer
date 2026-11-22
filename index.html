@@ -1110,8 +1110,13 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
   function sgLines(el) {
     const cv = el?.querySelector('.sgCanvas'); if (!cv) return;
     cv.querySelector('svg.sgLines')?.remove();
-    const col = cv.querySelector('.sgCol'); if (!col) return;
-    const k = col.getBoundingClientRect().width / 200 || 1;   // 見た目の大きさ ÷ 作りの大きさ（列は 200px）＝拡大の倍率
+    if (!cv.querySelector('.sgCol')) return;
+    // 拡大の倍率は、線を描く svg そのものを 1000 の幅で置いて実際に測る（2026-11-22 列の幅を「200px」と決め打ちしていて、字の大きさを変えたら線がずれた。
+    // CSS の幅や zoom の値を写して計算しない＝どこの大きさを変えても線は箱にぴったり合う）
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('class', 'sgLines'); svg.setAttribute('width', '1000'); svg.setAttribute('height', '10');
+    cv.prepend(svg);
+    const k = svg.getBoundingClientRect().width / 1000 || 1;
     const cr = cv.getBoundingClientRect(), X = (v) => ((v - cr.left) / k).toFixed(1), Y = (v) => ((v - cr.top) / k).toFixed(1);
     const boxes = new Map([...cv.querySelectorAll('.sgSet[data-id]')].map(b => [b.dataset.id, b]));
     const d = [];
@@ -1122,13 +1127,11 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
       const x1 = +X(a.right), y1 = +Y(a.top + a.height / 2), x2 = +X(b.left), y2 = +Y(b.top + b.height / 2), mx = (x1 + (x2 - x1) / 2).toFixed(1);
       d.push(`M${x1} ${y1}H${mx}V${y2}H${x2}`);
     });
-    if (!d.length) return;
-    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    svg.setAttribute('class', 'sgLines');
+    if (!d.length) { svg.remove(); return; }
     svg.setAttribute('width', (cr.width / k).toFixed(0)); svg.setAttribute('height', (cr.height / k).toFixed(0));
     const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     p.setAttribute('d', d.join(''));
-    svg.appendChild(p); cv.prepend(svg);
+    svg.appendChild(p);
   }
   const seedTxt = (n) => Number.isFinite(n) ? String(n) : '';
   // 試合の箱。o＝{ find, info（sgBracket）, dest：行き先を出す, proj：予想を出す }
