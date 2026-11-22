@@ -277,7 +277,7 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
     const k = kindOf(t), o = { kind: k, title: t.title, hidden: t.hidden };
     if (k === 'yt') Object.assign(o, { vid: t.vid, start: t.start });
     if (k === 'tw') Object.assign(o, okCh(t.ch) ? { ch: t.ch } : { vod: t.vod, time: t.time });
-    if (k === 'sg') Object.assign(o, { slug: t.slug, sgPhase: t.sgPhase, sgGroup: t.sgGroup, sgSide: t.sgSide, sgZoom: t.sgZoom, sgDest: !!t.sgDest, sgProj: !!t.sgProj });
+    if (k === 'sg') Object.assign(o, { slug: t.slug, sgPhase: t.sgPhase, sgGroup: t.sgGroup, sgSide: t.sgSide, sgZoom: t.sgZoom, sgProj: !!t.sgProj });
     return o;
   };
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify({
@@ -293,7 +293,7 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
     if (k === 'yt') Object.assign(o, { vid: t.vid, start: Math.max(0, parseInt(t.start, 10) || 0) });
     if (k === 'tw') Object.assign(o, okCh(t.ch) ? { ch: t.ch } : { vod: t.vod, time: okTime(t.time) ? t.time : '' });
     if (k === 'sg') Object.assign(o, { slug: okSlug(t.slug) ? t.slug : '', sgPhase: okId(t.sgPhase) ? t.sgPhase : '', sgGroup: okId(t.sgGroup) ? t.sgGroup : '',
-      sgSide: ['w', 'l'].includes(t.sgSide) ? t.sgSide : 'w', sgZoom: Math.min(1.6, Math.max(0.5, +t.sgZoom || 1)), sgDest: t.sgDest === true, sgProj: t.sgProj === true, sgFind: '' });
+      sgSide: ['w', 'l'].includes(t.sgSide) ? t.sgSide : 'w', sgZoom: Math.min(1.6, Math.max(0.5, +t.sgZoom || 1)), sgProj: t.sgProj === true, sgFind: '' });
     return o;
   };
   const saved = load(KEY, {});
@@ -780,7 +780,7 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
   const Q_TOUR = `query($slug:String){ tournament(slug:$slug){ name slug events{ name slug numEntrants } } }`;
   // 試合の一覧。シード（seed・initialSeedNum）と前の試合の勝ち/負け（prereqPlacement）は、行き先と予想に使う
   const Q_SETS = `query($id:ID!,$page:Int!){ phaseGroup(id:$id){ id bracketType sets(page:$page, perPage:60, sortType:STANDARD){ pageInfo{ totalPages }
-    nodes{ id round fullRoundText state winnerId identifier slots{ prereqId prereqType prereqPlacement seed{ seedNum } entrant{ id name initialSeedNum } standing{ stats{ score{ value } } } } } } } }`;
+    nodes{ id round fullRoundText state winnerId identifier slots{ prereqId prereqType prereqPlacement seed{ seedNum entrant{ id name initialSeedNum } } entrant{ id name initialSeedNum } standing{ stats{ score{ value } } } } } } } }`;
   // 上の項目が使えなかったときの予備（表はこれまでどおり出す）
   const Q_SETS_BASIC = `query($id:ID!,$page:Int!){ phaseGroup(id:$id){ id bracketType sets(page:$page, perPage:60, sortType:STANDARD){ pageInfo{ totalPages }
     nodes{ id round fullRoundText state winnerId identifier slots{ prereqId prereqType entrant{ id name } standing{ stats{ score{ value } } } } } } } }`;
@@ -960,7 +960,6 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
     else if (act === 'ev') sgSetUrl(t, `https://www.start.gg/${b.dataset.slug}`);
     else if (act === 'reload') { s.ev ? sgLoadSets(t) : sgLoadEvent(t); }
     else if (act === 'side') { t.sgSide = b.dataset.side; sgDraw(t, true); save(); }
-    else if (act === 'dest') { t.sgDest = !t.sgDest; sgDraw(t, true); save(); }
     else if (act === 'proj') { t.sgProj = !t.sgProj; sgDraw(t, true); save(); }
     else if (act === 'pgPrev') sgStepPool(t, -1);
     else if (act === 'pgNext') sgStepPool(t, 1);
@@ -1009,7 +1008,7 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
     const byId = new Map(sets.map(x => [String(x.id), x]));
     const seedOf = new Map();   // 選手 → シードの番号（このフェーズのシード、なければ大会の最初のシード）
     sets.forEach(x => (x.slots || []).forEach(sl => {
-      const en = sl?.entrant; if (!en || en.id == null) return;
+      const en = sl?.entrant || sl?.seed?.entrant; if (!en || en.id == null) return;
       const n = +sl.seed?.seedNum > 0 ? +sl.seed.seedNum : +en.initialSeedNum > 0 ? +en.initialSeedNum : null;
       const k = String(en.id);
       if (n != null && (!seedOf.has(k) || sl.seed?.seedNum)) seedOf.set(k, n);
@@ -1025,7 +1024,16 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
     };
     const loserTo = new Map();   // 勝者側の試合 → 負けた人が行く敗者側の試合（グランドファイナル→リセットは入れない）
     sets.forEach(x => { if (x.round >= 0) return; (x.slots || []).forEach(sl => { const f = src(x, sl); if (f?.set && f.lose && f.set.round > 0 && !loserTo.has(String(f.set.id))) loserTo.set(String(f.set.id), x); }); });
-    const rank = (en) => en ? (seedOf.get(String(en.id)) ?? Infinity) : Infinity;
+    const rank = (en) => en ? (seedOf.get(String(en.id)) ?? (en.seedNum > 0 ? en.seedNum : Infinity)) : Infinity;
+    // 枠の選手：入っていればその人／まだ枠に入っていなければシードの側の選手／それもなければ「シード3」のような仮の人（始まる前のトップ8など・本人 11/22）
+    const slotEn = (sl) => {
+      if (!sl) return null;
+      if (sl.entrant) return { en: sl.entrant, kind: 'real' };
+      if (sl.seed?.entrant) return { en: sl.seed.entrant, kind: 'seed' };
+      const n = +sl.seed?.seedNum;
+      if (n > 0 && (sl.prereqType !== 'set' || !byId.has(String(sl.prereqId)))) return { en: { id: 'seed:' + n, name: 'シード' + n, seedNum: n }, kind: 'pseudo' };   // 前のフェーズなど、この表にない試合から来る枠も（Codex 指摘）
+      return null;
+    };
     const memo = new Map(), busy = new Set();
     // 試合の2人（本物、または予想）。{ en, proj }
     const pair = (x) => {
@@ -1034,7 +1042,7 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
       busy.add(k);
       const out = isReset(x) ? resetPair(x) : [0, 1].map(i => {
         const sl = (x.slots || [])[i];
-        if (sl?.entrant) return { en: sl.entrant, proj: false };
+        const se = slotEn(sl); if (se) return { en: se.en, proj: false, kind: se.kind };
         const f = src(x, sl); if (!f?.set) return null;
         const r = result(f.set); const p = f.lose ? r.lose : r.win;
         return p ? { en: p.en, proj: true } : null;
@@ -1044,7 +1052,7 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
     // リセット：グランドファイナルで敗者側から来た人が勝ったときだけ、同じ2人がもう一度戦う（勝者側の人が勝てばリセットはない）
     const resetPair = (x) => {
       const sl = x.slots || [];
-      if (sl[0]?.entrant || sl[1]?.entrant) return [0, 1].map(i => sl[i]?.entrant ? { en: sl[i].entrant, proj: false } : null);
+      if (sl[0]?.entrant || sl[1]?.entrant) return [0, 1].map(i => sl[i]?.entrant ? { en: sl[i].entrant, proj: false, kind: 'real' } : null);
       const gf = byId.get(String(sl[0].prereqId)); if (!gf) return [null, null];
       const gp = pair(gf), r = result(gf); if (!r.win) return [null, null];
       let li = (gf.slots || []).findIndex(s2 => { const f = src(gf, s2); return f?.set && f.set.round < 0; });
@@ -1064,36 +1072,47 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
       const aw = ra === Infinity || rb === Infinity || ra <= rb;   // シードが同じ・どちらかが分からないときは上の枠が勝つ（本人 11/22「上の枠がシード高いはずだからその通りでいい」）
       return { win: aw ? a : b, lose: aw ? b : a };
     };
-    return { byId, src, loserTo, pair, rank, isReset, noSeed: seedOf.size === 0 };
+    return { byId, src, loserTo, pair, rank, isReset, slotEn, noSeed: seedOf.size === 0 && !sets.some(x => (x.slots || []).some(sl => +sl?.seed?.seedNum > 0)) };
   }
   const seedTxt = (n) => Number.isFinite(n) ? String(n) : '';
   // 試合の箱。o＝{ find, info（sgBracket）, dest：行き先を出す, proj：予想を出す }
   function sgSetHtml(x, o) {
     const { find, info, dest, proj } = o;
     const live = x.state === 2 || x.state === 6;
-    const names = (x.slots || []).map(sl => sl?.entrant?.name || '');
+    const names = (x.slots || []).map(sl => (sl?.entrant || sl?.seed?.entrant)?.name || '');
     const hit = find && names.some(n => n.toLowerCase().includes(find));
     const pr = proj ? info.pair(x) : null;
     const from = [0, 1].map(i => dest || proj ? info.src(x, (x.slots || [])[i]) : null);
     const reset = (dest || proj) && info.isReset(x);
     const fromTxt = (f) => !f ? '' : f.away ? 'ほかのプールから' : `${f.set.identifier || '?'} の${f.lose ? '負け' : '勝者'}`;
+    // カーソルを当てたときの説明：「A（勝者側1回戦）の負けた方：Alpha と Hotel」（本人 11/22）
+    const who = (f) => {
+      if (!f) return '';
+      if (f.away) return 'ほかのプールの試合から来ます';
+      const pp = info.pair(f.set), p = pp.map(q => q ? q.en.name + (q.proj ? '（予想）' : '') : '未定');
+      const wi = f.set.winnerId == null ? -1 : pp.findIndex(q => q && String(q.en.id) === String(f.set.winnerId));
+      if (wi >= 0) { const q = pp[f.lose ? 1 - wi : wi]; if (q) return `${f.set.identifier || '?'}（${f.set.fullRoundText || ''}）の${f.lose ? '負けた方' : '勝った方'}：${q.en.name}（決まり・${p[0]} と ${p[1]} の試合）`; }   // 決まっていれば1人に（Codex 指摘）
+      return `${f.set.identifier || '?'}（${f.set.fullRoundText || ''}）の${f.lose ? '負けた方' : '勝った方'}：${p[0]} と ${p[1]}`;
+    };
     const rows = [0, 1].map(i => {
-      const sl = (x.slots || [])[i], en = sl?.entrant;
+      const sl = (x.slots || [])[i], se = info ? info.slotEn(sl) : (sl?.entrant || sl?.seed?.entrant) ? { en: sl.entrant || sl.seed.entrant, kind: "real" } : null, en = se && se.kind !== 'pseudo' ? se.en : null, pseudo = se?.kind === 'pseudo' ? se.en : null;
       const win = en && x.winnerId != null && String(x.winnerId) === String(en.id);
-      const sd = proj ? `<span class="sd">${esc(seedTxt(info.rank(en || pr[i]?.en)))}</span>` : '';
+      const sdEn = en || pr?.[i]?.en, sd = proj && !pseudo && !String(sdEn?.id ?? "").startsWith("seed:") ? `<span class="sd">${esc(seedTxt(info.rank(sdEn)))}</span>` : '';
       let nm;
       if (en) nm = `<span class="nm" title="${esc(en.name || '')}">${sd}${esc(en.name)}</span>`;
-      else if (proj && pr[i]) nm = `<span class="nm proj" title="予想：${esc(pr[i].en.name || '')}${from[i] ? `（${esc(fromTxt(from[i]))}）` : ''}">${sd}${esc(pr[i].en.name)}</span>`;
-      else nm = `<span class="nm">${dest && reset ? '（リセットのときだけ）' : dest && from[i] ? esc(fromTxt(from[i])) : '未定'}</span>`;
+      else if (pseudo) nm = `<span class="nm" title="${esc(pseudo.name)}（まだ選手が決まっていません）">${esc(pseudo.name)}</span>`;
+      else if (proj && pr[i]) nm = `<span class="nm proj" title="予想：${esc(pr[i].en.name || '')}${from[i] ? `\n${esc(who(from[i]))}` : ''}">${sd}${esc(pr[i].en.name)}</span>`;
+      else nm = `<span class="nm"${dest && !reset && from[i] ? ` title="${esc(who(from[i]))}"` : ''}>${dest && reset ? '（リセットのときだけ）' : dest && from[i] ? esc(fromTxt(from[i])) : '未定'}</span>`;
       return `<div class="sgRow${win ? ' win' : ''}${en ? '' : ' tbd'}">${nm}<span class="sc">${esc(scoreText(sl))}</span></div>`;
     }).join('');
     let meta = '';
     if (dest) {   // 上の行：試合の記号と、負けた人の行き先（勝者側）／どこから来るか（予想と両方のとき）
       const to = x.round > 0 ? info.loserTo.get(String(x.id)) : null;
-      const comes = proj && !reset ? from.filter((f, i) => f && !(x.slots || [])[i]?.entrant).map(fromTxt).join('・') : '';
+      const comeFs = proj && !reset ? from.filter((f, i) => f && !info.slotEn((x.slots || [])[i])) : [];
+      const comes = comeFs.map(fromTxt).join('・');
       // 両方オンのときは「どこから来るか」と「負けたらどこへ」を両方出す（Codex 指摘）
       const right = [reset ? `リセット（${from[0]?.set?.identifier || '?'} で敗者側の人が勝ったとき）` : comes ? `← ${comes}` : '', to ? `負けたら → ${to.identifier || '?'}` : ''].filter(Boolean).join('　');
-      meta = `<div class="sgMeta"><span class="id">${esc(x.identifier || '')}</span>${live ? `<span class="lv">${x.state === 6 ? '呼び出し中' : '対戦中'}</span>` : ''}${right ? `<span class="to" title="${esc(right + (to ? `（負けた人は敗者側の ${to.identifier || '?'}・${to.fullRoundText || ''} へ）` : ''))}">${esc(right)}</span>` : ''}</div>`;
+      meta = `<div class="sgMeta"><span class="id">${esc(x.identifier || '')}</span>${live ? `<span class="lv">${x.state === 6 ? '呼び出し中' : '対戦中'}</span>` : ''}${right ? `<span class="to" title="${esc([...comeFs.map(who), to ? `負けた人は敗者側の ${to.identifier || '?'}（${to.fullRoundText || ''}）へ` : ''].filter(Boolean).join('\n') || right)}">${esc(right)}</span>` : ''}</div>`;
     }
     return `<div class="sgSet${live ? ' live' : ''}${hit ? ' hit' : find ? ' dim' : ''}">${live && !dest ? `<span class="tag">${x.state === 6 ? '呼び出し中' : '対戦中'}</span>` : ''}${meta}${rows}</div>`;
   }
@@ -1176,9 +1195,8 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
     const sideSeg = dbl && !rr ? `<div class="seg"><button data-act="side" data-side="w" class="${side === 'w' ? 'on' : ''}">勝者側</button><button data-act="side" data-side="l" class="${side === 'l' ? 'on' : ''}">敗者側</button></div>` : '';
     const find = (t.sgFind || '').trim().toLowerCase();
     // 行き先・予想の切りかえ（総当たりでは出さない）
-    const dest = !rr && !!t.sgDest, proj = !rr && !!t.sgProj;
-    const togs = rr ? '' : `<button data-act="dest" class="tog${dest ? ' on' : ''}" aria-pressed="${dest}" title="負けた人がどこへ行くか・どこから来るかを出す">行き先</button>`
-      + `<button data-act="proj" class="tog${proj ? ' on' : ''}" aria-pressed="${proj}" title="まだ決まっていない枠に、シードが上の人が勝ち進んだときに来る人を薄く出す（終わった試合の結果は反映）">予想</button>`;
+    const dest = !rr, proj = !rr && !!t.sgProj;   // 行き先はいつも出す（本人 11/22「常に表示しといて」）
+    const togs = rr ? '' : `<button data-act="proj" class="tog${proj ? ' on' : ''}" aria-pressed="${proj}" title="まだ決まっていない枠に、シードが上の人が勝ち進んだときに来る人を薄く出す（終わった試合の結果は反映）">予想</button>`;
     const bar = tools(`${phSel}${pgSel}${sideSeg}${togs}<button data-act="zout" title="小さく（ctrl＋ホイールでも）">－</button><button data-act="zin" title="大きく">＋</button>
       <input class="find" type="search" placeholder="選手名で目立たせる" value="${esc(t.sgFind || '')}">`);
     const warn = (s.err ? `<div class="sgMsg bad" style="margin:0 0 8px">⚠ ${esc(errText(s.err))}</div>` : '') + (s.partial ? '<div class="sgMsg note" style="margin:0 0 8px">試合が多いため、はじめの 3000 試合だけ出しています。</div>' : '');
