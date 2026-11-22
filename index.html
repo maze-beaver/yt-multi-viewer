@@ -7,6 +7,11 @@
 <meta name="robots" content="noindex, nofollow">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.youtube.com https://player.twitch.tv; frame-src https://www.youtube.com https://www.youtube-nocookie.com https://player.twitch.tv; img-src 'self' data: https://i.ytimg.com https://static-cdn.jtvnw.net; style-src 'self' 'unsafe-inline'; connect-src 'self' http://localhost:8790 https://api.start.gg; object-src 'none'; base-uri 'none'; form-action 'none'">
 <title>YouTube 複数画面</title>
+<!-- アイコン（2026-11-22 本人「黒い背景に白い線」→ 案A を選んだ。元＝開発中\アイコン案\line_A.svg） -->
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='112' fill='%23000'/%3E%3Cg fill='none' stroke='%23fff' stroke-width='26' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='144' y='112' width='224' height='144' rx='16'/%3E%3Cpath d='M168 320V288H344V320M256 288V256'/%3E%3Crect x='112' y='320' width='112' height='80' rx='12'/%3E%3Crect x='288' y='320' width='112' height='80' rx='12'/%3E%3C/g%3E%3C/svg%3E">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="theme-color" content="#000000">
+<meta name="apple-mobile-web-app-title" content="複数画面">
 <style>
   :root {
     --bg: #0b0c0e; --bar: #16181b; --line: #2c3036; --text: #f1f2f4; --sub: #9ba2ab;
@@ -82,15 +87,14 @@
   .tile.dropTarget::before { content: ""; position: absolute; inset: 0; background: rgba(255,255,255,.18); border: 3px dashed #fff; z-index: 4; pointer-events: none; }
   .tile.dragSrc { opacity: .45; }
 
-  .ctl { position: absolute; top: 0; left: 0; right: 0; display: flex; align-items: center; gap: 6px; padding: 6px; z-index: 5; pointer-events: none; }
+  /* 2026-11-22 本人「番号のボタンはどの画面も左上の隅に・もう少し小さく・Twitch と書かない」→ 上にそろえる（ほかのボタンが折り返しても下がらない） */
+  .ctl { position: absolute; top: 0; left: 0; right: 0; display: flex; align-items: flex-start; gap: 5px; padding: 4px; z-index: 5; pointer-events: none; }
   .ctl > * { pointer-events: auto; }
   .tile:hover .ctl, .tile.sel .ctl { background: linear-gradient(rgba(0,0,0,.88), rgba(0,0,0,.6) 75%, transparent); }
-  .handle { display: flex; align-items: center; gap: 5px; background: rgba(0,0,0,.7); border: 1px solid rgba(255,255,255,.18);
-    border-radius: 7px; padding: 4px 9px; font-weight: 700; font-size: 14px; cursor: grab; user-select: none; touch-action: none; }
-  .handle .grip { font-size: 16px; }
-  .handle .mv { display: none; font-size: 12px; font-weight: 600; margin-left: 2px; }
-  .handle .kind { font-size: 11px; font-weight: 700; border-radius: 4px; padding: 0 4px; }
-  .handle .kind.tw { background: #9146ff; color: #fff; }
+  .handle { flex: none; display: flex; align-items: center; gap: 4px; background: rgba(0,0,0,.7); border: 1px solid rgba(255,255,255,.18);
+    border-radius: 5px; padding: 2px 6px; font-weight: 700; font-size: 12px; line-height: 18px; cursor: grab; user-select: none; touch-action: none; }
+  .handle .grip { font-size: 13px; }
+  .handle .mv { display: none; font-size: 11px; font-weight: 600; margin-left: 2px; }
   .tile:hover .handle { border-color: #fff; }
   .tile:hover:not(.small) .handle .mv { display: inline; }
   .tile.sounding .handle { background: var(--accent); color: #111; border-color: var(--accent); }
@@ -107,7 +111,7 @@
   .tile.small .rest button { padding: 4px 7px; font-size: 12px; }
   .tile.small .rest .name, .tile.tiny .rest input[type=range] { display: none; }
   .tile.small .rest input[type=range] { width: 56px; }
-  @media (pointer: coarse) { .rest button, .tile.small .rest button { min-height: 38px; padding: 6px 10px; } .handle { min-height: 38px; } }
+  @media (pointer: coarse) { .rest button, .tile.small .rest button { min-height: 38px; padding: 6px 10px; } .handle { min-height: 32px; padding: 2px 8px; } }
   .err { position: absolute; inset: 0; display: none; flex-direction: column; gap: 10px; align-items: center; justify-content: center;
     background: #111; color: var(--sub); z-index: 2; text-align: center; padding: 20px; }
   .err a { color: #fff; }
@@ -130,20 +134,21 @@
   .sgBody { flex: 1; min-height: 0; overflow: auto; padding: 12px; }
   .sgBody.canPan { cursor: grab; }
   .sgBody.panning { cursor: grabbing; user-select: none; }
-  .sgCanvas { display: flex; gap: 22px; width: max-content; min-height: 100%; }
+  /* 2026-11-22 本人「小さめに表示したときに文字がはっきり表示されない」→ 縮めても字は 10px より小さくしない（--fs を JS で決める）・字の色を明るく */
+  .sgCanvas { display: flex; gap: 22px; width: max-content; min-height: 100%; font-size: var(--fs, 12px); -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
   .sgCol { display: flex; flex-direction: column; width: 200px; flex: none; }
-  .sgColH { color: var(--sub); font-size: 12px; font-weight: 700; text-align: center; padding: 0 0 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sgColH { color: #b4bac1; font-size: 1em; font-weight: 700; text-align: center; padding: 0 0 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .sgSets { flex: 1; display: flex; flex-direction: column; justify-content: space-around; gap: 10px; }
-  .sgSet { background: #1b1e23; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; font-size: 12px; position: relative; flex: none; }
-  .sgRow { display: flex; align-items: stretch; height: 24px; }
-  .sgRow + .sgRow { border-top: 1px solid var(--line); }
-  .sgRow .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #9ba2ab; padding: 0 7px; line-height: 24px; }
-  .sgRow .sc { width: 26px; text-align: center; background: #25292f; color: #9ba2ab; line-height: 24px; flex: none; }
+  .sgSet { background: #1b1e23; border: 1px solid #3a3f46; border-radius: 6px; overflow: hidden; font-size: 1em; position: relative; flex: none; }
+  .sgRow { display: flex; align-items: stretch; height: max(24px, 2em); }
+  .sgRow + .sgRow { border-top: 1px solid #3a3f46; }
+  .sgRow .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #d2d6db; font-weight: 500; padding: 0 7px; line-height: max(24px, 2em); }
+  .sgRow .sc { width: max(26px, 2.2em); text-align: center; background: #25292f; color: #d2d6db; font-weight: 600; line-height: max(24px, 2em); flex: none; }
   .sgRow.win .nm, .sgRow.win .sc { color: #fff; font-weight: 700; }
-  .sgRow.win .sc { background: #3a3f46; }
-  .sgRow.tbd .nm { color: #5c636c; font-style: italic; }
+  .sgRow.win .sc { background: #4a5059; }
+  .sgRow.tbd .nm { color: #868e97; font-style: italic; }
   .sgSet.live { border-color: var(--danger); }
-  .sgSet .tag { position: absolute; right: 30px; top: 0; font-size: 10px; background: var(--danger); color: #fff; border-radius: 0 0 4px 4px; padding: 0 5px; line-height: 14px; }
+  .sgSet .tag { position: absolute; right: max(30px, 2.5em); top: 0; font-size: max(10px, .8em); background: var(--danger); color: #fff; border-radius: 0 0 4px 4px; padding: 0 5px; line-height: 14px; }
   .sgSet.hit { outline: 2px solid #ffd54a; outline-offset: 1px; }
   .sgSet.dim { opacity: .35; }
   .sgBar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 6px 8px; background: var(--bar); border-bottom: 1px solid var(--line); font-size: 12px; }
@@ -417,13 +422,12 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
   function makeTile(t) {
     const el = document.createElement('div');
     el.className = 'tile'; el.id = 't-' + t.key;   // 枠は YouTube・Twitch だけ（トーナメント表はサイドバー）
-    const kindTag = t.kind === 'tw' ? '<span class="kind tw">Twitch</span>' : '';
     const site = t.kind === 'tw' ? 'Twitch' : 'YouTube';
     el.innerHTML = `
       <div class="frame"><div id="p-${t.key}"></div></div>
       <div class="err"><div class="msg">この動画はここでは再生できません</div><a target="_blank" rel="noopener" href="${esc(openUrl(t))}">${site} で開く</a></div>
       <div class="ctl">
-        <span class="handle" title="押す＝この画面を1番（大きい画面）にする／長押しでつかんで、ほかの画面に落とす＝場所の入れかえ"><span class="grip">✥</span><span class="num"></span>${kindTag}<span class="spk"></span><span class="mv">押す＝1番・長押し＝移動</span></span>
+        <span class="handle" title="押す＝この画面を1番（大きい画面）にする／長押しでつかんで、ほかの画面に落とす＝場所の入れかえ"><span class="grip">✥</span><span class="num"></span><span class="spk"></span><span class="mv">押す＝1番・長押し＝移動</span></span>
         <div class="rest">
           <button class="snd" title="音のオン/オフ"><span class="ico">🔇</span><span class="lbl"> 音</span></button>
           <button class="solo" title="この画面だけ鳴らす">🎯<span class="lbl"> これだけ鳴らす</span></button>
@@ -1025,9 +1029,10 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
     const warn = (s.err ? `<div class="sgMsg bad" style="margin:0 0 8px">⚠ ${esc(errText(s.err))}</div>` : '') + (s.partial ? '<div class="sgMsg note" style="margin:0 0 8px">試合が多いため、はじめの 3000 試合だけ出しています。</div>' : '');
     if (!sets.length) return { bar, body: warn + `<div class="sgMsg">${s.loading ? '読み込み中…' : 'このプールにはまだ対戦がありません（組み合わせの発表前かもしれません）。'}</div>` };
     const cols = rr ? sgColumns(sets.map(x => ({ ...x, round: Math.abs(x.round) || 1 })), 'w') : sgColumns(sets, side);
-    const colH = Math.max(1, ...cols.map(c => c.length)) * 60;
     const zoom = Math.min(1.6, Math.max(0.5, +t.sgZoom || 1));
-    const body = warn + `<div class="sgCanvas" style="zoom:${zoom}">${cols.map(c => `<div class="sgCol"><div class="sgColH" title="${esc(c[0]?.fullRoundText || '')}">${esc(c[0]?.fullRoundText || '')}</div><div class="sgSets" style="min-height:${colH}px">${c.map(x => sgSetHtml(x, find)).join('')}</div></div>`).join('')}</div>`;
+    const fsN = Math.max(12, 10 / zoom);   // 縮めても、画面の上で字が 10px を下回らないように
+    const colH = Math.max(1, ...cols.map(c => c.length)) * Math.max(60, Math.round(fsN * 4 + 14));   // 1試合（2行）ぶんの高さ＋すき間
+    const body = warn + `<div class="sgCanvas" style="zoom:${zoom};--fs:${fsN.toFixed(2)}px">${cols.map(c => `<div class="sgCol"><div class="sgColH" title="${esc(c[0]?.fullRoundText || '')}">${esc(c[0]?.fullRoundText || '')}</div><div class="sgSets" style="min-height:${colH}px">${c.map(x => sgSetHtml(x, find)).join('')}</div></div>`).join('')}</div>`;
     return { bar, body, table: true };
   }
   // 15秒ごとに見て、前に読んでから1分たっていたら読み直す（サイドバーを開いているときだけ・この画面が裏にあるときは読まない）
