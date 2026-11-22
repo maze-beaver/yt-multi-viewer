@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="robots" content="noindex, nofollow">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.youtube.com; frame-src https://www.youtube.com https://www.youtube-nocookie.com; img-src 'self' data: https://i.ytimg.com; style-src 'self' 'unsafe-inline'; connect-src 'self' http://localhost:8790; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.youtube.com https://player.twitch.tv; frame-src https://www.youtube.com https://www.youtube-nocookie.com https://player.twitch.tv; img-src 'self' data: https://i.ytimg.com https://static-cdn.jtvnw.net; style-src 'self' 'unsafe-inline'; connect-src 'self' http://localhost:8790 https://api.start.gg; object-src 'none'; base-uri 'none'; form-action 'none'">
 <title>YouTube 複数画面</title>
 <style>
   :root {
@@ -25,6 +25,7 @@
   #bar { position: fixed; top: 0; left: 0; right: 0; min-height: 48px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
     padding: 7px 10px; background: var(--bar); border-bottom: 1px solid var(--line); z-index: 20; }
   #bar .title { font-weight: 700; white-space: nowrap; }
+  #testBadge { background: #ffd54a; color: #111; font-weight: 700; border-radius: 6px; padding: 2px 7px; white-space: nowrap; }
   #url { flex: 0 1 360px; min-width: 150px; height: 32px; resize: none; overflow: hidden; white-space: nowrap;
     background: #0f1113; color: var(--text); border: 1px solid var(--line); border-radius: 7px; padding: 6px 9px; line-height: 18px; }
   #url::placeholder { color: #6d747d; }
@@ -44,7 +45,7 @@
   #showBar { position: fixed; top: 6px; left: 6px; z-index: 30; opacity: .3; display: none; }
   #showBar:hover { opacity: 1; }
   body.barHidden #showBar { display: block; }
-  @media (max-width: 1450px) { #hideBar .lbl2 { display: none; } #url { flex-basis: 240px; } #bar .title { display: none; } }
+  @media (max-width: 1450px) { #hideBar .lbl2, #addSg .lbl2 { display: none; } #url { flex-basis: 240px; } #bar .title { display: none; } }
   @media (max-width: 760px) {
     #bar { height: auto; flex-wrap: wrap; padding: 6px max(8px, env(safe-area-inset-right, 0px)) 6px max(8px, env(safe-area-inset-left, 0px)); gap: 6px; }
     #bar .title, #count, #helpBtn, #fsBtn, #bar .sep, #bar .spacer { display: none; }
@@ -52,7 +53,7 @@
     #bar button { padding: 6px 9px; }
     #hiddenPop { left: 8px !important; right: 8px; width: auto; }
     #bar > * { order: 5; }
-    #url { order: 1; } #addBtn { order: 2; } #hideBar { order: 3; }
+    #url { order: 1; } #addBtn { order: 2; } #addSg { order: 3; } #hideBar { order: 4; }
     #hideBar .lbl2 { display: none; }
   }
 
@@ -63,7 +64,8 @@
   #hiddenPop h4 { margin: 0 0 8px; font-size: 13px; color: var(--sub); font-weight: 400; }
   .hrow { display: flex; align-items: center; gap: 10px; padding: 6px; border-radius: 8px; }
   .hrow:hover { background: #262a30; }
-  .hrow img { width: 96px; height: 54px; object-fit: cover; border-radius: 5px; background: #000; flex: none; }
+  .hrow img, .hrow .ph { width: 96px; height: 54px; object-fit: cover; border-radius: 5px; background: #000; flex: none; }
+  .hrow .ph { display: flex; align-items: center; justify-content: center; font-size: 22px; background: #23262b; }
   .hrow .t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
   #hiddenPop .all { width: 100%; margin-top: 6px; }
 
@@ -87,6 +89,8 @@
     border-radius: 7px; padding: 4px 9px; font-weight: 700; font-size: 14px; cursor: grab; user-select: none; touch-action: none; }
   .handle .grip { font-size: 16px; }
   .handle .mv { display: none; font-size: 12px; font-weight: 600; margin-left: 2px; }
+  .handle .kind { font-size: 11px; font-weight: 700; border-radius: 4px; padding: 0 4px; }
+  .handle .kind.tw { background: #9146ff; color: #fff; }
   .tile:hover .handle { border-color: #fff; }
   .tile:hover:not(.small) .handle .mv { display: inline; }
   .tile.sounding .handle { background: var(--accent); color: #111; border-color: var(--accent); }
@@ -109,6 +113,58 @@
   .err a { color: #fff; }
   .tile.hasErr .err { display: flex; }
 
+  /* ---- start.gg のトーナメント表（右のサイドバー・2026-11-22 本人「トーナメントはサイドバーがいいな」）---- */
+  #t-side { position: fixed; right: 0; bottom: 0; top: 48px; width: 420px; display: none; flex-direction: column; background: #101215;
+    border-left: 1px solid var(--line); z-index: 15; }
+  body.sideOpen #t-side { display: flex; }
+  body.barHidden #t-side { top: 0; }
+  .sideHead { display: flex; align-items: center; gap: 8px; padding: 6px 8px 6px 14px; border-bottom: 1px solid var(--line); background: var(--bar); }
+  .sideHead .st { flex: 1; min-width: 0; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sideGrip { position: absolute; left: -4px; top: 0; bottom: 0; width: 8px; cursor: ew-resize; touch-action: none; z-index: 2; }
+  .sideGrip:hover, body.sizing .sideGrip { background: rgba(255,255,255,.25); }
+  body.sizing, body.sizing * { cursor: ew-resize !important; user-select: none; }
+  body.sizing .tile iframe { pointer-events: none; }
+  body.narrowWin .sideGrip { display: none; }   /* 幅の狭い画面ではサイドバーは全面に重ねるので、幅は変えない */
+  #addSg.on { background: var(--accent); color: #111; font-weight: 700; border-color: var(--accent); }
+  .sg { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; color: var(--text); }
+  .sgBody { flex: 1; min-height: 0; overflow: auto; padding: 12px; }
+  .sgBody.canPan { cursor: grab; }
+  .sgBody.panning { cursor: grabbing; user-select: none; }
+  .sgCanvas { display: flex; gap: 22px; width: max-content; min-height: 100%; }
+  .sgCol { display: flex; flex-direction: column; width: 200px; flex: none; }
+  .sgColH { color: var(--sub); font-size: 12px; font-weight: 700; text-align: center; padding: 0 0 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sgSets { flex: 1; display: flex; flex-direction: column; justify-content: space-around; gap: 10px; }
+  .sgSet { background: #1b1e23; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; font-size: 12px; position: relative; flex: none; }
+  .sgRow { display: flex; align-items: stretch; height: 24px; }
+  .sgRow + .sgRow { border-top: 1px solid var(--line); }
+  .sgRow .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #9ba2ab; padding: 0 7px; line-height: 24px; }
+  .sgRow .sc { width: 26px; text-align: center; background: #25292f; color: #9ba2ab; line-height: 24px; flex: none; }
+  .sgRow.win .nm, .sgRow.win .sc { color: #fff; font-weight: 700; }
+  .sgRow.win .sc { background: #3a3f46; }
+  .sgRow.tbd .nm { color: #5c636c; font-style: italic; }
+  .sgSet.live { border-color: var(--danger); }
+  .sgSet .tag { position: absolute; right: 30px; top: 0; font-size: 10px; background: var(--danger); color: #fff; border-radius: 0 0 4px 4px; padding: 0 5px; line-height: 14px; }
+  .sgSet.hit { outline: 2px solid #ffd54a; outline-offset: 1px; }
+  .sgSet.dim { opacity: .35; }
+  .sgBar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 6px 8px; background: var(--bar); border-bottom: 1px solid var(--line); font-size: 12px; }
+  .sgBar select, .sgBar input { background: #0f1113; border: 1px solid var(--line); border-radius: 6px; padding: 3px 6px; max-width: 170px; }
+  .sgBar input { width: 130px; }
+  .sgBar button { padding: 3px 9px; }
+  .sgBar .seg button { padding: 3px 9px; }
+  .sgBar .upd { color: var(--sub); white-space: nowrap; }
+  .sgFoot { padding: 4px 10px; border-top: 1px solid var(--line); background: var(--bar); color: var(--sub); font-size: 12px; text-align: right; }   /* 出典（start.gg の API 規約） */
+  .sgFoot a { color: #fff; }
+  #t-side.narrow .sgBar .upd { display: none; }
+  .sgMsg { max-width: 560px; margin: 10px auto; line-height: 1.85; color: #ddd; font-size: 13px; }
+  .sgMsg h3 { margin: 0 0 6px; font-size: 15px; }
+  .sgMsg ol { margin: 4px 0 10px; padding-left: 22px; }
+  .sgMsg .row { display: flex; gap: 6px; margin: 8px 0; flex-wrap: wrap; }
+  .sgMsg input { flex: 1 1 220px; background: #0f1113; border: 1px solid var(--line); border-radius: 7px; padding: 6px 9px; }
+  .sgMsg a { color: #fff; }
+  .sgMsg .note { color: var(--sub); font-size: 12px; }
+  .sgMsg .bad { color: #ff8a80; }
+  .sgMsg .ev { display: block; width: 100%; text-align: left; margin: 4px 0; }
+
   #toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: #2b2f35; border: 1px solid var(--line);
     padding: 8px 16px; border-radius: 8px; z-index: 40; opacity: 0; transition: opacity .2s; pointer-events: none; }
   #toast.on { opacity: 1; }
@@ -117,8 +173,10 @@
 <body>
 <div id="bar">
   <span class="title">▶ 複数画面</span>
-  <textarea id="url" rows="1" placeholder="YouTube の URL を1つ貼って Enter" autocomplete="off" spellcheck="false"></textarea>
+  <span id="testBadge" title="開発中のテスト版です。いつものツールとは保存も別です">テスト版</span>
+  <textarea id="url" rows="1" placeholder="YouTube・Twitch・start.gg の URL を貼って Enter" autocomplete="off" spellcheck="false"></textarea>
   <button id="addBtn" class="primary">追加</button>
+  <button id="addSg" title="start.gg のトーナメント表を右に出す・しまう（T キー）">🏆<span class="lbl2"> トーナメント表</span></button>
   <span id="count">0/8</span>
   <div class="sep"></div>
   <div class="seg" title="E キーで切りかえ">
@@ -128,7 +186,7 @@
   <button id="playAll" title="P キー">⏸ 全部停止</button>
   <button id="hiddenBtn">👁 隠し中 0</button>
   <div class="spacer"></div>
-  <button id="clearAll" class="x2" title="並んでいる動画を全部外す（保存した組み合わせは残る）">🗑 全部消す</button>
+  <button id="clearAll" class="x2" title="並んでいる画面を全部外す（保存した組み合わせは残る）">🗑 全部消す</button>
   <select id="presetSel" class="wide" title="保存した組み合わせ"><option value="">保存した組み合わせ</option></select>
   <button id="presetSave" class="wide">保存</button>
   <button id="presetDel" class="wide">消す</button>
@@ -140,57 +198,141 @@
 <button id="showBar" title="H キー">☰ 帯を出す</button>
 <div id="hiddenPop"><h4>隠している画面（押すと戻ります）</h4><div id="hiddenRows"></div><button class="all" id="showAllBtn">全部表示する</button></div>
 <div id="stage"><div id="empty"></div></div>
+<div id="t-side"><div class="sideGrip" title="つかんで左右に動かすと幅が変わります"></div>
+  <div class="sideHead"><span class="st">🏆 トーナメント表</span><button id="sideClose" title="閉じる（T キー）">✕ 閉じる</button></div>
+  <div class="sg"><div class="sgBar"></div><div class="sgBody"></div><div class="sgFoot"></div></div></div>
 <div id="toast"></div>
 <div id="fileWarn" style="display:none;position:fixed;inset:0;z-index:100;background:rgba(11,12,14,.97);color:#f1f2f4;align-items:center;justify-content:center;text-align:center;line-height:2;font-size:16px">
   <div>このファイルを直接開くと、YouTube の決まりで動画が再生できません（エラー 153）。<br>
-  <b>同じフォルダの「起動する.bat」をダブルクリック</b>して開いてください（動いていれば <a href="http://localhost:8790/" style="color:#fff">こちらを押しても開けます</a>）。<br>
+  <b>同じフォルダの「<span id="batName"></span>」をダブルクリック</b>して開いてください。<br>
   <span id="fileWarnSub" style="color:#9ba2ab;font-size:13px">サーバーが動いているか確かめています…</span></div>
 </div>
 
 <script>
+// ===== 版ごとの設定（反映するときはここだけ変える）=====
+// テスト版：8791・公開版へは移らない／いつもの版：8790・止まっていれば公開版へ
+const LOCAL_URL = 'http://localhost:8790/';
+const PUBLIC_URL = 'https://maze-beaver.github.io/yt-multi-viewer/';
+const BAT_NAME = '起動する.bat';
+const IS_TEST = false;
+
 // ファイルを直接開いたとき（file://）は YouTube がエラー153で断るので、PC内のサーバーの画面へ移る
 if (location.protocol === 'file:') {
   document.getElementById('fileWarn').style.display = 'flex';
-  const go = 'http://localhost:8790/';
-  fetch(go, { mode: 'no-cors' }).then(() => location.replace(go)).catch(() => {
-    document.getElementById('fileWarnSub').textContent = 'サーバーが動いていません。「起動する.bat」をダブルクリックすると、自動で正しい画面が開きます。';
+  document.getElementById('batName').textContent = BAT_NAME;
+  fetch(LOCAL_URL, { mode: 'no-cors' }).then(() => location.replace(LOCAL_URL)).catch(() => {
+    if (PUBLIC_URL) {   // サーバーが止まっていたら、サーバーのいらない公開版へ移る（2026-11-22）
+      document.getElementById('fileWarnSub').textContent = 'サーバーが動いていないので、公開版の画面へ移ります…';
+      location.replace(PUBLIC_URL);
+    } else {
+      document.getElementById('fileWarnSub').textContent = `サーバーが動いていません。「${BAT_NAME}」をダブルクリックすると、自動で正しい画面が開きます。`;
+    }
   });
 }
+if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 'YouTube 複数画面'; }
+
 (() => {
-  const MAX = 8, GAP = 3, KEY = 'ytmulti.state.v1', PKEY = 'ytmulti.presets.v1';
+  const MAX = 8, GAP = 3, KEY = 'ytmulti.state.v1', PKEY = 'ytmulti.presets.v1', TOKEN_KEY = 'ytmulti.startgg.token';
   const $ = (s) => document.querySelector(s);
   const stage = $('#stage');
+  const esc = (v) => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  // ---------- 種類 ----------
+  // yt＝YouTube／tw＝Twitch（ch＝チャンネル・vod＝録画）／sg＝start.gg のトーナメント表（slug＝tournament/〇/event/〇）
+  const isMedia = (t) => t.kind === 'yt' || t.kind === 'tw';
+  const okVid = (v) => typeof v === 'string' && /^[\w-]{11}$/.test(v);
+  const okCh = (v) => typeof v === 'string' && /^[A-Za-z0-9_]{2,25}$/.test(v);
+  const okVod = (v) => typeof v === 'string' && /^\d{1,12}$/.test(v);
+  const okTime = (v) => typeof v === 'string' && /^(\d{1,3}h)?(\d{1,3}m)?(\d{1,3}s)?$/.test(v);
+  const okSlug = (v) => typeof v === 'string' && /^tournament\/[\w-]{1,120}(\/event\/[\w-]{1,120})?$/.test(v);
+  const okId = (v) => typeof v === 'string' && /^\d{1,12}$/.test(v);
+  const kindOf = (t) => t && (t.kind === 'tw' || t.kind === 'sg') ? t.kind : 'yt';   // 古い保存データは YouTube
+  const okTile = (t) => {
+    if (!t) return false;
+    const k = kindOf(t);
+    if (k === 'yt') return okVid(t.vid);
+    if (k === 'tw') return okCh(t.ch) || okVod(t.vod);
+    return false;   // トーナメント表は枠ではなくサイドバー（state.side）
+  };
 
   // ---------- 保存 ----------
   const load = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v ?? d; } catch { return d; } };
+  const pick = (t) => {
+    const k = kindOf(t), o = { kind: k, title: t.title, hidden: t.hidden };
+    if (k === 'yt') Object.assign(o, { vid: t.vid, start: t.start });
+    if (k === 'tw') Object.assign(o, okCh(t.ch) ? { ch: t.ch } : { vod: t.vod, time: t.time });
+    if (k === 'sg') Object.assign(o, { slug: t.slug, sgPhase: t.sgPhase, sgGroup: t.sgGroup, sgSide: t.sgSide, sgZoom: t.sgZoom });
+    return o;
+  };
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify({
-    tiles: state.tiles.map(({ key, vid, start, vol, hidden, title }) => ({ key, vid, start, vol, hidden, title })),
-    layout: state.layout, barHidden: state.barHidden })); } catch {} };
-  const okVid = (v) => typeof v === 'string' && /^[\w-]{11}$/.test(v);
-  const okTile = (t) => t && okVid(t.vid);
-  const cleanTile = (t, i) => ({ key: typeof t.key === 'string' && /^[\w]{1,40}$/.test(t.key) ? t.key : newKey(i), vid: t.vid,
-    start: Math.max(0, parseInt(t.start, 10) || 0), vol: Math.min(100, Math.max(0, parseInt(t.vol ?? 100, 10) || 0)),
-    hidden: !!t.hidden, title: typeof t.title === 'string' ? t.title.slice(0, 300) : '', muted: true });   // 開き直したときは全部ミュート
+    tiles: state.tiles.map(t => ({ key: t.key, vol: t.vol, ...pick(t) })),
+    layout: state.layout, barHidden: state.barHidden,
+    side: { open: state.side.open, width: state.side.width, ...pick(state.side) } })); } catch {} };
   const newKey = (i = 0) => 'k' + Date.now().toString(36) + i + Math.random().toString(36).slice(2, 6);
+  const cleanTile = (t, i) => {
+    const k = kindOf(t);
+    const o = { key: typeof t.key === 'string' && /^[\w]{1,40}$/.test(t.key) ? t.key : newKey(i), kind: k,
+      vol: Math.min(100, Math.max(0, parseInt(t.vol ?? 100, 10) || 0)),
+      hidden: !!t.hidden, title: typeof t.title === 'string' ? t.title.slice(0, 300) : '', muted: true };   // 開き直したときは全部ミュート
+    if (k === 'yt') Object.assign(o, { vid: t.vid, start: Math.max(0, parseInt(t.start, 10) || 0) });
+    if (k === 'tw') Object.assign(o, okCh(t.ch) ? { ch: t.ch } : { vod: t.vod, time: okTime(t.time) ? t.time : '' });
+    if (k === 'sg') Object.assign(o, { slug: okSlug(t.slug) ? t.slug : '', sgPhase: okId(t.sgPhase) ? t.sgPhase : '', sgGroup: okId(t.sgGroup) ? t.sgGroup : '',
+      sgSide: ['w', 'l'].includes(t.sgSide) ? t.sgSide : 'w', sgZoom: Math.min(1.6, Math.max(0.5, +t.sgZoom || 1)), sgFind: '' });
+    return o;
+  };
   const saved = load(KEY, {});
   const state = {
     tiles: (Array.isArray(saved.tiles) ? saved.tiles : []).filter(okTile).slice(0, MAX).map(cleanTile)
       .map((t, i, arr) => arr.findIndex(x => x.key === t.key) < i ? { ...t, key: newKey(i) } : t),   // 同じ key が2つあれば作り直す
     layout: saved.layout === 'equal' ? 'equal' : 'focus',   // 'equal'＝全部同じ／'focus'＝1つ大きく（1番の位置が大）
     barHidden: !!saved.barHidden,
+    // トーナメント表のサイドバー（key は 'side' 固定・中身の形は start.gg の枠と同じ）
+    side: { ...cleanTile({ ...(saved.side && typeof saved.side === 'object' ? saved.side : {}), kind: 'sg', key: 'side' }, 0), key: 'side',
+      // width：0＝画面の半分（はじめ・2026-11-22 本人「最初開いたタイミングでは画面の半分」）／左の端をつかんで動かすとその幅を覚える
+      open: !!saved.side?.open, width: Math.min(3000, Math.max(0, parseInt(saved.side?.width, 10) || 0)) },
   };
-  let presets = (Array.isArray(load(PKEY, [])) ? load(PKEY, []) : []).filter(p => p && typeof p.name === 'string' && Array.isArray(p.tiles));
-  const players = {};
-  let apiReady = false;
+  const savedPresets = load(PKEY, []);
+  let presets = (Array.isArray(savedPresets) ? savedPresets : []).filter(p => p && typeof p.name === 'string' && Array.isArray(p.tiles));
+  const players = {};   // key → { mute, unMute, setVolume(0-100), play, pause, playing, destroy, p }
+  const tileEl = (key) => document.getElementById('t-' + key);
+  const findTile = (key) => state.tiles.find(t => t.key === key);
+  let apiReady = false, twReady = false, twLoading = false;
 
-  // ---------- URL から動画IDを取る ----------
+  // ---------- URL を読む ----------
+  const TW_RESERVED = new Set(['directory', 'videos', 'settings', 'search', 'downloads', 'p', 'jobs', 'turbo', 'prime', 'subscriptions', 'inventory',
+    'wallet', 'drops', 'friends', 'messages', 'login', 'signup', 'legal', 'store', 'products', 'broadcast', 'moderator', 'popout', 'team', 'collections',
+    'following', 'bits', 'privacy', 'security', 'partners', 'clip', 'clips', 'embed', 'u', 'dashboard', 'creatorcamp']);
   function parse(text) {
     text = text.trim();
     if (!text) return null;
-    if (/^[\w-]{11}$/.test(text)) return { vid: text, start: 0 };
+    if (/^[\w-]{11}$/.test(text)) return { kind: 'yt', vid: text, start: 0 };
     let u;
     try { u = new URL(text.startsWith('http') ? text : 'https://' + text); } catch { return null; }
-    const host = u.hostname.replace(/^www\.|^m\./, '');
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') return null;
+    const host = u.hostname.toLowerCase().replace(/^www\.|^m\./, '');
+    // --- Twitch ---
+    if (host === 'twitch.tv' || host === 'player.twitch.tv') {
+      if (host === 'player.twitch.tv') {
+        const ch = u.searchParams.get('channel'), v = (u.searchParams.get('video') || '').replace(/^v/, '');
+        if (okCh(ch || '') && !TW_RESERVED.has(ch.toLowerCase())) return { kind: 'tw', ch };
+        if (okVod(v)) return { kind: 'tw', vod: v, time: okTime(u.searchParams.get('time') || '') ? u.searchParams.get('time') : '' };
+        return null;
+      }
+      const seg = u.pathname.split('/').filter(Boolean);
+      if (seg[0] === 'videos' && okVod(seg[1] || '')) {
+        const tt = u.searchParams.get('t') || '';
+        return { kind: 'tw', vod: seg[1], time: okTime(tt) ? tt : '' };
+      }
+      if (seg.length === 1 && okCh(seg[0]) && !TW_RESERVED.has(seg[0].toLowerCase())) return { kind: 'tw', ch: seg[0] };
+      return null;
+    }
+    // --- start.gg（旧 smash.gg）---
+    if (host === 'start.gg' || host === 'smash.gg') {
+      const m = u.pathname.match(/^\/tournament\/([\w-]{1,120})(?:\/event\/([\w-]{1,120}))?(?:\/brackets\/(\d{1,12})(?:\/(\d{1,12}))?)?/);
+      if (!m) return null;
+      return { kind: 'sg', slug: `tournament/${m[1]}` + (m[2] ? `/event/${m[2]}` : ''), sgPhase: m[2] && m[3] ? m[3] : '', sgGroup: m[2] && m[4] ? m[4] : '' };
+    }
+    // --- YouTube ---
     let vid = null;
     if (host === 'youtu.be') { const m = u.pathname.match(/^\/([\w-]{11})\/?$/); if (m) vid = m[1]; }
     else if (host === 'youtube.com' || host.endsWith('.youtube.com') || host === 'youtube-nocookie.com') {
@@ -201,47 +343,87 @@ if (location.protocol === 'file:') {
     const t = u.searchParams.get('t') || u.searchParams.get('start') || '0';
     let start = 0; const mm = String(t).match(/(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s?)?/);
     if (/^\d+$/.test(t)) start = +t; else if (mm) start = (+mm[1] || 0) * 3600 + (+mm[2] || 0) * 60 + (+mm[3] || 0);
-    return { vid, start };
+    return { kind: 'yt', vid, start };
   }
 
   // ---------- 追加・削除 ----------
+  function addTile(p, i = 0) {
+    const t = cleanTile({ ...p, key: newKey(i), vol: 100, hidden: false, title: '' }, i);
+    state.tiles.push(t); makeTile(t);
+    return t;
+  }
   function addFromInput() {
     const tokens = $('#url').value.split(/\s+/).filter(Boolean);
     if (!tokens.length) return;
     let added = 0, bad = 0, full = false;
+    let sideUrl = null;
     tokens.forEach((tk, i) => {
-      if (state.tiles.length >= MAX) { full = true; return; }
       const p = parse(tk);
       if (!p) { bad++; return; }
-      const t = { key: newKey(i), vid: p.vid, start: p.start, vol: 100, muted: true, hidden: false, title: '' };
-      state.tiles.push(t); makeTile(t); added++;
+      if (p.kind === 'sg') { sideUrl = tk; return; }   // start.gg はサイドバーに出す
+      if (state.tiles.length >= MAX) { full = true; return; }
+      addTile(p, i); added++;
     });
+    if (sideUrl) { setSide(true, true); sgSetUrl(state.side, sideUrl); }   // 古い大会は読まずに、新しい大会だけ読む
     $('#url').value = '';
     const msg = [];
-    if (added) msg.push(`${added} 本 追加しました`);
-    if (bad) msg.push(`${bad} 件は動画の URL として読めませんでした（チャンネルの「/live」ではなく、配信そのものの URL を貼ってください）`);
-    if (full) msg.push('8 本までです');
-    if (msg.length) toast(msg.join('　'));
+    if (added) msg.push(`${added} 枠 追加しました`);
+    if (bad) msg.push(`${bad} 件は読めませんでした（YouTube は配信そのものの URL、Twitch は twitch.tv/チャンネル名 か twitch.tv/videos/番号、start.gg は大会の URL を貼ってください）`);
+    if (full) msg.push('8 枠までです');
+    if (msg.length) toast(msg.join('　'), bad ? 7000 : 3500);
     render(); save();
   }
-  function removeTile(key) {
-    const i = state.tiles.findIndex(t => t.key === key); if (i < 0) return;
-    try { players[key]?.destroy(); } catch {}
-    delete players[key];
-    document.getElementById('t-' + key)?.remove();
-    state.tiles.splice(i, 1);
+  // トーナメント表のサイドバーを出す・しまう（しまっている間は読みに行かない）
+  function setSide(open, noLoad) {
+    state.side.open = open;
+    if (!open) { const s = sgCancel(state.side); s.tried = 0; }   // 閉じたら読みかけをやめる（開き直したらすぐ読めるように、待ち時間も戻す）
     render(); save();
+    if (open && !noLoad) { sgDraw(state.side); sgRefreshIfOld(state.side); }
+  }
+  const addBracket = () => setSide(!state.side.open);
+  // 幅は左の端をつかんで変える
+  function startSize(e) {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    document.body.classList.add('sizing');
+    const mv = (ev) => { state.side.width = Math.round(Math.min(Math.max(280, innerWidth - ev.clientX), Math.max(280, innerWidth - 320))); render(); };
+    // 離した・取り消された（pointercancel）のどちらでも、同じ後始末をする（Codex 指摘・取り残し防止）
+    const up = () => {
+      document.body.classList.remove('sizing');
+      window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up);
+      save();
+    };
+    window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
+  }
+  function destroyPlayer(key) {
+    try { players[key]?.destroy?.(); } catch {}
+    delete players[key];
+  }
+  // 枠を1つ外す（quiet＝まとめて外すとき。描き直し・保存は呼んだ側が最後に1回）
+  function removeTile(key, quiet) {
+    const i = state.tiles.findIndex(t => t.key === key); if (i < 0) return;
+    destroyPlayer(key);
+    tileEl(key)?.remove();
+    state.tiles.splice(i, 1);
+    if (!quiet) { render(); save(); }
   }
 
   // ---------- 画面（タイル）を作る ----------
+  function openUrl(t) {
+    if (t.kind === 'yt') return `https://www.youtube.com/watch?v=${t.vid}`;
+    if (t.kind === 'tw') return t.ch ? `https://www.twitch.tv/${t.ch}` : `https://www.twitch.tv/videos/${t.vod}`;
+    return t.slug ? `https://www.start.gg/${t.slug}` : 'https://www.start.gg/';
+  }
   function makeTile(t) {
     const el = document.createElement('div');
-    el.className = 'tile'; el.id = 't-' + t.key;
+    el.className = 'tile'; el.id = 't-' + t.key;   // 枠は YouTube・Twitch だけ（トーナメント表はサイドバー）
+    const kindTag = t.kind === 'tw' ? '<span class="kind tw">Twitch</span>' : '';
+    const site = t.kind === 'tw' ? 'Twitch' : 'YouTube';
     el.innerHTML = `
       <div class="frame"><div id="p-${t.key}"></div></div>
-      <div class="err"><div class="msg">この動画はここでは再生できません</div><a target="_blank" rel="noopener" href="https://www.youtube.com/watch?v=${t.vid}">YouTube で開く</a></div>
+      <div class="err"><div class="msg">この動画はここでは再生できません</div><a target="_blank" rel="noopener" href="${esc(openUrl(t))}">${site} で開く</a></div>
       <div class="ctl">
-        <span class="handle" title="つかんで、ほかの画面に落とすと場所が入れかわります（押すとボタンが出ます）"><span class="grip">✥</span><span class="num"></span><span class="spk"></span><span class="mv">つかんで移動</span></span>
+        <span class="handle" title="押す＝この画面を1番（大きい画面）にする／長押しでつかんで、ほかの画面に落とす＝場所の入れかえ"><span class="grip">✥</span><span class="num"></span>${kindTag}<span class="spk"></span><span class="mv">押す＝1番・長押し＝移動</span></span>
         <div class="rest">
           <button class="snd" title="音のオン/オフ"><span class="ico">🔇</span><span class="lbl"> 音</span></button>
           <button class="solo" title="この画面だけ鳴らす">🎯<span class="lbl"> これだけ鳴らす</span></button>
@@ -259,90 +441,157 @@ if (location.protocol === 'file:') {
     el.querySelector('.bigBtn').onclick = () => makeBig(t.key);
     el.querySelector('.hide').onclick = () => setHidden(t.key, true);
     el.querySelector('.x').onclick = () => removeTile(t.key);
-    el.querySelector('.handle').addEventListener('pointerdown', (e) => startDrag(e, t.key));
-    if (apiReady) makePlayer(t);
+    const handle = el.querySelector('.handle');
+    handle.addEventListener('pointerdown', (e) => startDrag(e, t.key));
+    handle.addEventListener('contextmenu', (e) => e.preventDefault());   // 指で長押ししたときに出るメニューを止める
+    if (t.kind === 'yt') { if (apiReady) makePlayer(t); }
+    else if (twReady) makeTw(t); else loadTwitch();
+  }
+  // 枠の中に「再生できません」を出す
+  function showTileErr(key, msg) {
+    const el = tileEl(key); if (!el) return;
+    el.querySelector('.err .msg').textContent = msg;
+    el.classList.add('hasErr');
   }
 
+  // --- YouTube ---
   function makePlayer(t) {
     if (players[t.key]) return;
-    players[t.key] = new YT.Player('p-' + t.key, {
+    const p = new YT.Player('p-' + t.key, {
       host: 'https://www.youtube-nocookie.com',
       videoId: t.vid, width: '100%', height: '100%',
       playerVars: { autoplay: t.hidden ? 0 : 1, mute: 1, playsinline: 1, rel: 0, start: t.start || 0, origin: location.origin },
       events: {
         onReady: (e) => {
           const p = e.target;
-          try { p.setVolume(t.vol); t.muted ? p.mute() : p.unMute(); t.hidden ? p.pauseVideo() : p.playVideo(); } catch {}   // 準備中に隠されたものも止める
+          try { p.setVolume(t.vol); t.muted ? p.mute() : p.unMute(); (t.hidden || t.stopped) ? p.pauseVideo() : p.playVideo(); } catch {}   // 準備中に隠した・全部停止したものも止める
           updateTitle(t);
         },
         onStateChange: () => { updateTitle(t); updatePlayBtn(); },
         onError: (e) => {
-          const el = document.getElementById('t-' + t.key); if (!el) return;
           const code = e.data;
           const msg = (code === 101 || code === 150) ? '配信者が埋め込みを許可していないため、ここでは再生できません'
             : (code === 100 || code === 5) ? '動画が見つからないか、非公開・削除されています'
             : code === 2 ? 'URL がまちがっているようです'
-            : code === 153 ? 'ファイルを直接開いているため再生できません。「起動する.bat」から開いてください'
+            : code === 153 ? `ファイルを直接開いているため再生できません。「${BAT_NAME}」から開いてください`
             : `再生できませんでした（コード ${code}）`;
-          el.querySelector('.err .msg').textContent = msg;
-          el.classList.add('hasErr');
+          showTileErr(t.key, msg);
         },
       },
     });
+    players[t.key] = {
+      p, mute: () => p.mute(), unMute: () => p.unMute(), setVolume: (v) => p.setVolume(v),
+      play: () => p.playVideo(), pause: () => p.pauseVideo(),
+      playing: () => { const s = p.getPlayerState?.(); return s === 1 || s === 3; },
+      destroy: () => p.destroy(),
+    };
   }
   function updateTitle(t) {
-    if (t.title) return;
-    try { const d = players[t.key]?.getVideoData?.(); if (d && d.title) { t.title = d.title; render(); save(); } } catch {}
+    if (t.title || t.kind !== 'yt') return;
+    try { const d = players[t.key]?.p?.getVideoData?.(); if (d && d.title) { t.title = d.title; render(); save(); } } catch {}
+  }
+
+  // --- Twitch（公式の埋め込み。parent にこのページの名前を渡す決まり）---
+  function loadTwitch() {
+    if (twLoading) return; twLoading = true;
+    const s = document.createElement('script'); s.src = 'https://player.twitch.tv/js/embed/v1.js';
+    s.onload = () => { twReady = true; state.tiles.filter(t => t.kind === 'tw').forEach(makeTw); };
+    s.onerror = () => { twLoading = false; toast('Twitch の読み込みに失敗しました。ネットのつながりを確かめて、開き直してください', 6000); };
+    document.head.appendChild(s);
+  }
+  function makeTw(t) {
+    if (players[t.key] || !document.getElementById('p-' + t.key)) return;
+    if (!t.title) t.title = t.ch ? t.ch : `Twitch の録画 ${t.vod}`;
+    const opt = { width: '100%', height: '100%', parent: [location.hostname], autoplay: !t.hidden && !t.stopped, muted: true };
+    if (t.ch) opt.channel = t.ch; else { opt.video = 'v' + t.vod; if (t.time) opt.time = t.time; }
+    let p;
+    try { p = new Twitch.Player('p-' + t.key, opt); } catch (e) { showTileErr(t.key, 'Twitch を表示できませんでした'); return; }
+    let ready = false;
+    const safe = (f) => { if (!ready) return; try { f(); } catch {} };
+    const mine = () => players[t.key] === me;   // 作り直した・外したあとの古いプレイヤーの知らせは無視する
+    // Twitch の生配信は、一度止めると外からの「再生」で戻らないことがある（2026-11-22 確かめ）→ 戻らなければ枠を作り直して再生する
+    const me = players[t.key] = {
+      p, mute: () => safe(() => p.setMuted(true)), unMute: () => safe(() => p.setMuted(false)),
+      setVolume: (v) => safe(() => p.setVolume(v / 100)), pause: () => { clearTimeout(me.retry); safe(() => p.pause()); },
+      play: () => {
+        if (!ready) return;
+        try { p.play(); } catch {}
+        clearTimeout(me.retry);   // 止めた・隠した・オフラインなら作り直さない（Codex 指摘・勝手に再生しない）
+        me.retry = setTimeout(() => { try { if (mine() && !t.hidden && !t.stopped && !t.offline && p.isPaused()) rebuildTw(t); } catch {} }, 1800);
+      },
+      playing: () => { try { return ready && !p.isPaused(); } catch { return false; } },
+      destroy: () => clearTimeout(me.retry),   // 中の iframe は枠ごと消すと止まる
+    };
+    p.addEventListener(Twitch.Player.READY, () => {
+      if (!mine()) return;
+      ready = true;
+      me.setVolume(t.vol); t.muted ? me.mute() : me.unMute();
+      // 準備中に隠した・全部停止したものは止める／準備中に「表示する」を押したものは再生する（Codex 指摘）
+      if (t.hidden || t.stopped) me.pause(); else safe(() => { if (p.isPaused()) p.play(); });
+      updatePlayBtn();
+    });
+    [Twitch.Player.PLAY, Twitch.Player.PLAYING, Twitch.Player.PAUSE, Twitch.Player.ENDED].forEach(ev => p.addEventListener(ev, () => { if (mine()) updatePlayBtn(); }));
+    p.addEventListener(Twitch.Player.OFFLINE, () => { if (mine()) { t.offline = true; updatePlayBtn(); } });
+    p.addEventListener(Twitch.Player.ONLINE, () => { if (mine()) t.offline = false; });
+  }
+  // 枠の中身だけ作り直す（再生が戻らない生配信用。隠していない・止めていないときだけ呼ばれる）
+  function rebuildTw(t) {
+    const box = document.getElementById('p-' + t.key); if (!box) return;
+    destroyPlayer(t.key);
+    box.innerHTML = '';
+    makeTw(t);
   }
 
   // ---------- 音 ----------
   function setMuted(key, muted, quiet) {
-    const t = state.tiles.find(x => x.key === key); if (!t) return;
+    const t = findTile(key); if (!t || !isMedia(t)) return;
     t.muted = muted;
     try { const p = players[key]; if (p) { if (muted) p.mute(); else { if (!t.vol) t.vol = 100; p.unMute(); p.setVolume(t.vol); } } } catch {}
     if (!quiet) { render(); save(); }
   }
-  function solo(key) { state.tiles.forEach(t => setMuted(t.key, t.key !== key || t.hidden, true)); render(); save(); }
-  const anySounding = () => state.tiles.some(t => !t.muted && !t.hidden);
+  function solo(key) { state.tiles.filter(isMedia).forEach(t => setMuted(t.key, t.key !== key || t.hidden, true)); render(); save(); }
+  const anySounding = () => state.tiles.some(t => isMedia(t) && !t.muted && !t.hidden);
   function toggleAllSound() {
     const mute = anySounding();
-    state.tiles.forEach(t => setMuted(t.key, mute || t.hidden, true));
+    state.tiles.filter(isMedia).forEach(t => setMuted(t.key, mute || t.hidden, true));
     render(); save();
     toast(mute ? '全部ミュートにしました' : '全部の音を出しました');
   }
 
   // ---------- 全部停止・全部再生・全部消す ----------
-  const isPlaying = (t) => { try { const s = players[t.key]?.getPlayerState?.(); return s === 1 || s === 3; } catch { return false; } };
-  const anyPlaying = () => visible().some(isPlaying);
+  const isPlaying = (t) => { try { return !!players[t.key]?.playing(); } catch { return false; } };
+  const visibleMedia = () => visible().filter(isMedia);
+  const anyPlaying = () => visibleMedia().some(isPlaying);
   function updatePlayBtn() {
     const b = document.getElementById('playAll'); if (!b) return;
     const playing = anyPlaying();
     b.textContent = playing ? '⏸ 全部停止' : '▶ 全部再生';
-    b.disabled = !visible().length;
+    b.disabled = !visibleMedia().length;
   }
   function togglePlayAll() {
-    if (!visible().length) return;
+    if (!visibleMedia().length) return;
     const stop = anyPlaying();
-    visible().forEach(t => { try { const p = players[t.key]; if (p) stop ? p.pauseVideo() : p.playVideo(); } catch {} });
+    visibleMedia().forEach(t => { t.stopped = stop; try { const p = players[t.key]; if (p) stop ? p.pause() : p.play(); } catch {} });
     toast(stop ? '全部停止しました' : '全部再生しました');
     setTimeout(updatePlayBtn, 400);
   }
   function clearAll() {
     const n = state.tiles.length; if (!n) return;
     const hid = state.tiles.filter(t => t.hidden).length;
-    if (!confirm(`並んでいる動画 ${n} 本を全部消します${hid ? `（隠し中の ${hid} 本も含む）` : ''}。\n保存した組み合わせは残ります。よろしいですか？`)) return;
-    state.tiles.slice().forEach(t => { try { players[t.key]?.destroy(); } catch {} delete players[t.key]; document.getElementById('t-' + t.key)?.remove(); });
-    state.tiles.length = 0;
+    if (!confirm(`並んでいる画面 ${n} 枠を全部消します${hid ? `（隠し中の ${hid} 枠も含む）` : ''}。\n保存した組み合わせは残ります。よろしいですか？`)) return;
+    removeAllTiles();
     $('#hiddenPop').classList.remove('on');
     render(); save(); toast('全部消しました');
   }
+  const removeAllTiles = () => state.tiles.slice().forEach(t => removeTile(t.key, true));
 
   // ---------- 隠す・大きく・入れかえ ----------
   function setHidden(key, hidden) {
-    const t = state.tiles.find(x => x.key === key); if (!t) return;
+    const t = findTile(key); if (!t) return;
     t.hidden = hidden;
-    try { const p = players[key]; if (p) hidden ? p.pauseVideo() : p.playVideo(); } catch {}
-    if (hidden && !t.muted) setMuted(key, true, true);
+    if (!hidden) t.stopped = false;
+    try { const p = players[key]; if (p) hidden ? p.pause() : p.play(); } catch {}
+    if (hidden && !t.muted) setMuted(key, true, true);   // 隠すと止まり、音も消える
     render(); save();
     if (!state.tiles.some(x => x.hidden)) $('#hiddenPop').classList.remove('on');
   }
@@ -353,53 +602,444 @@ if (location.protocol === 'file:') {
     [state.tiles[i], state.tiles[j]] = [state.tiles[j], state.tiles[i]];
     render(); save();
   }
+  // 番号を押しただけ：その画面を1番へ（並べ方はそのまま。1つ大きくのときは大きい画面になる）
+  function makeFirst(key) {
+    const first = visible()[0]; if (first && first.key !== key) swap(first.key, key);
+  }
   // 「大きく」＝その画面を1番の位置へ（今の1番と入れかえ）。全部同じのときは「1つ大きく」に切りかえる
   function makeBig(key) {
-    const first = visible()[0]; if (first && first.key !== key) swap(first.key, key);
+    makeFirst(key);
     if (state.layout !== 'focus') { state.layout = 'focus'; render(); save(); }
+  }
+  // 2026-11-22 本人「大画面のやつの音声だけが流れるように」「全部同じのときは1番だけ」「増やすのは俺の方で」
+  // → 1番（大きい画面）が入れかわったとき・並べ方を変えたときだけ、1番の音だけにする。そのあと本人が鳴らした分はそのまま。
+  let lastFirst;
+  function followFirst(force) {
+    const f = visible()[0], k = f ? f.key : null;
+    if (lastFirst === undefined) { lastFirst = k; return; }   // 開いた直後は音を変えない（開き直したときは全部ミュートで始まる）
+    if (!force && k === lastFirst) return;
+    lastFirst = k;
+    if (f && isMedia(f)) solo(f.key);
   }
 
   // ---------- ドラッグで入れかえ ----------
   let drag = null;
+  // 押しただけ（0.35秒より短く・動かさない）＝1番へ／長押し、またはマウスで引っぱる＝つかんで移動
   function startDrag(e, key) {
     if (e.button !== 0) return;
+    if (drag) { if (drag.mouse) endDrag(true); else return; }   // 2本目の指では始めない（マウスで取り残しがあれば片付けてから始める）
     e.preventDefault();
-    drag = { key, target: null, x: e.clientX, y: e.clientY, moved: false };
-    document.body.classList.add('dragging');
-    document.getElementById('t-' + key)?.classList.add('dragSrc');
+    drag = { key, id: e.pointerId, target: null, x: e.clientX, y: e.clientY, moved: false, grab: false, mouse: e.pointerType === 'mouse' };
+    drag.timer = setTimeout(grabNow, 350);
     window.addEventListener('pointermove', onDragMove);
-    window.addEventListener('pointerup', endDrag, { once: true });
+    window.addEventListener('pointerup', onDragUp);
+    window.addEventListener('pointercancel', onDragCancel);
+  }
+  const onDragUp = (e) => { if (drag && e.pointerId === drag.id) endDrag(); };
+  const onDragCancel = (e) => { if (drag && e.pointerId === drag.id) endDrag(true); };   // 取り消し＝入れかえも1番へもしない（Codex 指摘）
+  function grabNow() {
+    if (!drag || drag.grab) return;
+    drag.grab = true;
+    document.body.classList.add('dragging');
+    tileEl(drag.key)?.classList.add('dragSrc');
   }
   function tileAt(x, y) {
     for (const t of visible()) {
-      const r = document.getElementById('t-' + t.key)?.getBoundingClientRect();
+      const r = tileEl(t.key)?.getBoundingClientRect();
       if (r && x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return t.key;
     }
     return null;
   }
   function onDragMove(e) {
-    if (!drag) return;
-    if (Math.abs(e.clientX - drag.x) + Math.abs(e.clientY - drag.y) > 6) drag.moved = true;
+    if (!drag || e.pointerId !== drag.id) return;
+    if (Math.abs(e.clientX - drag.x) + Math.abs(e.clientY - drag.y) > 8) {
+      drag.moved = true;
+      if (!drag.grab) { if (drag.mouse) grabNow(); else { endDrag(true); return; } }   // 指で長押し前に動かした＝つかまない
+    }
+    if (!drag.grab) return;
     const k = tileAt(e.clientX, e.clientY);
     const target = k && k !== drag.key ? k : null;
     if (target !== drag.target) {
-      if (drag.target) document.getElementById('t-' + drag.target)?.classList.remove('dropTarget');
-      if (target) document.getElementById('t-' + target)?.classList.add('dropTarget');
+      if (drag.target) tileEl(drag.target)?.classList.remove('dropTarget');
+      if (target) tileEl(target)?.classList.add('dropTarget');
       drag.target = target;
     }
   }
-  function endDrag() {
+  // cancel＝後始末だけ（離したときの動き＝入れかえ・1番へ・ボタンを出す、はしない）
+  function endDrag(cancel) {
     window.removeEventListener('pointermove', onDragMove);
+    window.removeEventListener('pointerup', onDragUp);
+    window.removeEventListener('pointercancel', onDragCancel);
     document.body.classList.remove('dragging');
     document.querySelectorAll('.dropTarget, .dragSrc').forEach(el => el.classList.remove('dropTarget', 'dragSrc'));
-    if (drag && drag.target) swap(drag.key, drag.target);
-    else if (drag && !drag.moved) {   // 押しただけ：その画面のボタンを出す／しまう（スマホ用）
-      const el = document.getElementById('t-' + drag.key), on = !el.classList.contains('sel');
+    const d = drag; drag = null;
+    if (!d) return;
+    clearTimeout(d.timer);
+    if (cancel === true) return;
+    if (d.target) swap(d.key, d.target);
+    else if (!d.grab && !d.moved) makeFirst(d.key);   // 押しただけ：1番へ
+    else if (d.grab && !d.moved && !d.mouse) {   // 指で長押しして離した：その画面のボタンを出す／しまう（スマホ用）
+      const el = tileEl(d.key); if (!el) return;
+      const on = !el.classList.contains('sel');
       document.querySelectorAll('.tile.sel').forEach(x => x.classList.remove('sel'));
       if (on) el.classList.add('sel');
     }
-    drag = null;
   }
+
+  // ---------- start.gg のトーナメント表 ----------
+  // start.gg の API（公式・無料）を使う。鍵（トークン）は本人が start.gg で作って貼る。この端末の localStorage だけに置き、api.start.gg 以外へは送らない。
+  // 決まり：60秒に80回まで・1回に1000件まで／出典（start.gg）を表示する（API 規約）
+  const sg = {};   // key → { ev, tour, sets, bt, err, loading, at, evAt, tried, partial, seq, ac }
+  const getToken = () => { try { return localStorage.getItem(TOKEN_KEY) || ''; } catch { return ''; } };
+  const setToken = (v) => { try { v ? localStorage.setItem(TOKEN_KEY, v) : localStorage.removeItem(TOKEN_KEY); } catch {} };
+  let sgLast = 0;
+  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+  // エラーの種類をまとめて作る（code：auth＝鍵／rate＝回数の上限／net＝通信／none＝見つからない／api＝そのほか／cancel＝やめた）
+  const apiErr = (m) => ({ code: /rate limit/i.test(m) ? 'rate' : /auth|token/i.test(m) ? 'auth' : 'api', msg: m });
+  // start.gg に1回聞く。job＝{ alive：まだ要るか（閉じた・大会を変えたら false）, s：その表の状態（読みかけの通信を s.ac に置き、やめるときに切る）}
+  async function gql(query, variables, job) {
+    const token = getToken();
+    if (!token) throw { code: 'auth' };
+    const wait = Math.max(0, sgLast + 900 - Date.now());   // 0.9秒に1回まで（1分に約66回・上限80回より少なく）
+    sgLast = Date.now() + wait;
+    if (wait) await sleep(wait);
+    if (!job.alive()) throw { code: 'cancel' };
+    const ac = new AbortController(), timer = setTimeout(() => ac.abort(), 15000);   // 15秒で返事（本文まで）がなければやめる
+    job.s.ac = ac;
+    let res, j;
+    try {
+      res = await fetch('https://api.start.gg/gql/alpha', { method: 'POST', credentials: 'omit', referrerPolicy: 'no-referrer', signal: ac.signal,
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }, body: JSON.stringify({ query, variables }) });
+      if (res.status === 401 || res.status === 403) throw { code: 'auth' };
+      if (res.status === 429) throw { code: 'rate' };
+      j = await res.json();   // 本文の読み込みも 15秒の打ち切りの中に入れる（Codex 指摘）
+    } catch (e) {
+      if (!job.alive()) throw { code: 'cancel' };
+      throw typeof e?.code === 'string' ? e : { code: 'net' };   // 自分で作ったエラー（auth・rate）だけ通す。打ち切り（AbortError・code が数）や通信の失敗は net
+    } finally { clearTimeout(timer); if (job.s.ac === ac) job.s.ac = null; }
+    if (j?.errors?.length) throw apiErr(String(j.errors[0].message || ''));
+    if (j?.success === false) throw apiErr(String(j.message || ''));
+    return j?.data || {};
+  }
+  const Q_EVENT = `query($slug:String){ event(slug:$slug){ id name slug tournament{ name slug }
+    phases{ id name bracketType phaseOrder phaseGroups(query:{page:1,perPage:50}){ pageInfo{ totalPages } nodes{ id displayIdentifier bracketType state } } } } }`;
+  const Q_PGROUPS = `query($id:ID!,$page:Int!){ phase(id:$id){ phaseGroups(query:{page:$page,perPage:50}){ pageInfo{ totalPages } nodes{ id displayIdentifier bracketType state } } } }`;
+  const Q_TOUR = `query($slug:String){ tournament(slug:$slug){ name slug events{ name slug numEntrants } } }`;
+  const Q_SETS = `query($id:ID!,$page:Int!){ phaseGroup(id:$id){ id bracketType sets(page:$page, perPage:60, sortType:STANDARD){ pageInfo{ totalPages }
+    nodes{ id round fullRoundText state winnerId identifier slots{ prereqId prereqType entrant{ id name } standing{ stats{ score{ value } } } } } } } }`;
+  const errText = (e) => e.code === 'auth' ? '鍵（トークン）が正しくないか、期限が切れています。下の欄から貼り直してください。'
+    : e.code === 'rate' ? 'start.gg の回数の上限に当たりました。1分ほどあとに自動でもう一度読みます。'
+    : e.code === 'net' ? 'start.gg につながりませんでした。ネットのつながりを確かめてください（1分ごとに読み直します）。'
+    : e.code === 'none' ? 'この URL の大会・部門が見つかりませんでした。URL がまちがっているか、非公開の大会です。'
+    : `start.gg から読めませんでした（${e.msg || '理由不明'}）`;   // 字のまま返す。HTML に入れる側で esc する
+  const sgOf = (key) => (sg[key] ||= { ev: null, tour: null, sets: null, err: null, loading: false, at: 0, seq: 0, ac: null });
+  // 読みかけをやめる（世代を進めて古い返事を捨て、送った通信も切る）
+  function sgCancel(t) {
+    const s = sgOf(t.key);
+    s.seq++; s.loading = false;
+    try { s.ac?.abort(); } catch {}
+    s.ac = null;
+    return s;
+  }
+  // 新しい読み込みを始める：前の読みかけをやめて、この読み込みの job を返す
+  function sgBegin(t, quiet) {
+    const s = sgCancel(t), my = s.seq;
+    s.loading = true; if (!quiet) { s.err = null; sgDraw(t); }
+    return { s, my, alive: () => my === s.seq && t.open, mine: () => my === s.seq };
+  }
+
+  function sgInit(t, el) {
+    const box = el.querySelector('.sg');
+    box.addEventListener('click', (e) => sgClick(t, e));
+    box.addEventListener('change', (e) => sgChange(t, e));
+    box.addEventListener('input', (e) => { if (e.target.classList.contains('find')) { t.sgFind = e.target.value; sgHighlight(t); } });
+    box.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' || e.isComposing) return;
+      if (e.target.classList.contains('tok')) sgSaveToken(t, e.target);
+      if (e.target.classList.contains('surl')) sgSetUrl(t, e.target.value);
+    });
+    const body = box.querySelector('.sgBody');
+    // ctrl＋ホイールで拡大・縮小／マウスでつかんで動かす（入力欄やボタンの上は除く）
+    body.addEventListener('wheel', (e) => { if (!e.ctrlKey || !sgOf(t.key).sets) return; e.preventDefault(); sgZoom(t, e.deltaY < 0 ? 0.1 : -0.1); }, { passive: false });
+    body.addEventListener('pointerdown', (e) => {
+      if (e.pointerType !== 'mouse' || e.button !== 0 || !body.classList.contains('canPan') || e.target.closest('button, input, select, a, textarea')) return;
+      const sx = e.clientX, sy = e.clientY, l = body.scrollLeft, tp = body.scrollTop;
+      body.classList.add('panning'); body.setPointerCapture(e.pointerId);
+      const mv = (ev) => { body.scrollLeft = l - (ev.clientX - sx); body.scrollTop = tp - (ev.clientY - sy); };
+      const up = () => {   // 離した・取り消しのどちらでも3つとも外す（Codex 指摘・残りがたまらないように）
+        body.classList.remove('panning');
+        body.removeEventListener('pointermove', mv); body.removeEventListener('pointerup', up); body.removeEventListener('pointercancel', up);
+      };
+      body.addEventListener('pointermove', mv); body.addEventListener('pointerup', up); body.addEventListener('pointercancel', up);
+    });
+    sgDraw(t);
+    if (t.open) sgRefreshIfOld(t);
+  }
+  function sgSaveToken(t, input) {
+    const v = (input.value || '').trim().replace(/^Bearer\s+/i, '');
+    if (!/^[A-Za-z0-9]{20,100}$/.test(v)) { toast('鍵の形が違うようです。start.gg でコピーした文字をそのまま貼ってください', 6000); return; }
+    setToken(v); input.value = '';
+    toast('鍵を保存しました（この端末だけ）');
+    const s = sgOf(t.key);
+    if (s.err?.code === 'auth') s.err = null;
+    if (t.slug) sgLoadEvent(t); else sgDraw(t);
+  }
+  function sgSetUrl(t, text) {
+    const p = parse(text || '');
+    if (!p || p.kind !== 'sg') { toast('start.gg の大会の URL として読めませんでした（例：https://www.start.gg/tournament/〇〇/event/〇〇）', 6000); return; }
+    Object.assign(t, { slug: p.slug, sgPhase: p.sgPhase, sgGroup: p.sgGroup, sgSide: 'w', title: '' });
+    Object.assign(sgOf(t.key), { ev: null, tour: null, sets: null, err: null, at: 0 });
+    save(); render(); sgLoadEvent(t);
+  }
+  // quiet＝表を出したまま裏で大会の形（フェーズ・プール）だけ読み直す（5分ごと）
+  async function sgLoadEvent(t, quiet) {
+    const job = sgBegin(t, quiet), { s } = job;
+    try {
+      if (!/\/event\//.test(t.slug)) {   // 大会だけの URL：部門を選んでもらう
+        const d = await gql(Q_TOUR, { slug: t.slug.replace(/^tournament\//, '') }, job);
+        if (!job.mine()) return;
+        if (!d.tournament) throw { code: 'none' };
+        s.tour = d.tournament; s.ev = null; s.sets = null;
+        t.title = d.tournament.name || ''; render(); save();
+      } else {
+        const d = await gql(Q_EVENT, { slug: t.slug }, job);
+        if (!job.mine()) return;
+        if (!d.event) throw { code: 'none' };
+        // プールが50を超えるフェーズは続きのページも読む（Codex 指摘・大きな大会）
+        for (const ph of d.event.phases || []) {
+          const total = Math.min(ph.phaseGroups?.pageInfo?.totalPages || 1, 20);
+          for (let pg = 2; pg <= total; pg++) {
+            const e2 = await gql(Q_PGROUPS, { id: ph.id, page: pg }, job);
+            if (!job.mine()) return;
+            ph.phaseGroups.nodes = ph.phaseGroups.nodes.concat(e2.phase?.phaseGroups?.nodes || []);
+          }
+        }
+        s.ev = d.event; s.tour = null; s.evAt = Date.now();
+        t.title = `${d.event.tournament?.name || ''}　${d.event.name || ''}`.trim(); render();
+        sgPickDefault(t);
+        save();
+        await sgLoadSets(t, quiet);   // 続けてプールの試合を読む（ここで世代が進む）
+        return;
+      }
+    } catch (e) { if (job.mine() && e.code !== 'cancel') s.err = e; }
+    sgFinish(t, job, quiet);
+  }
+  // 読み込みの終わり（自分が最新の読み込みのときだけ描き直す。quiet＝見ていた位置を保つ）
+  function sgFinish(t, job, quiet) {
+    if (!job.mine()) return;
+    job.s.loading = false; sgDraw(t, quiet);
+  }
+  const phasesOf = (ev) => (ev?.phases || []).slice().sort((a, b) => (a.phaseOrder ?? 0) - (b.phaseOrder ?? 0));
+  const groupsOf = (ph) => (ph?.phaseGroups?.nodes || []).slice().sort((a, b) => String(a.displayIdentifier).localeCompare(String(b.displayIdentifier), 'ja', { numeric: true }));
+  // 最初に出すところ：URL で指定があればそれ／なければ進んでいるいちばん後ろのフェーズの、対戦中のプール
+  function sgPickDefault(t) {
+    const phs = phasesOf(sgOf(t.key).ev);
+    let ph = phs.find(p => String(p.id) === t.sgPhase);
+    if (!ph) ph = [...phs].reverse().find(p => groupsOf(p).some(g => g.state >= 2)) || phs[0];
+    t.sgPhase = ph ? String(ph.id) : '';
+    const gs = groupsOf(ph);
+    let g = gs.find(x => String(x.id) === t.sgGroup);
+    if (!g) g = gs.find(x => x.state === 2) || gs.find(x => x.state !== 3) || gs[0];
+    t.sgGroup = g ? String(g.id) : '';
+  }
+  async function sgLoadSets(t, quiet) {
+    if (!t.sgGroup) {   // プールがまだないフェーズ：前の読みかけをやめて、空の表を出す（Codex 指摘・前のプールの返事が入りこまないように）
+      const s = sgCancel(t); s.sets = []; s.bt = null; s.partial = false; s.err = null; sgDraw(t);
+      return;
+    }
+    const job = sgBegin(t, quiet), { s } = job, group = t.sgGroup;
+    try {
+      let page = 1, total = 1, all = [], bt = null, real = 1;
+      do {
+        const d = await gql(Q_SETS, { id: group, page }, job);
+        if (!job.mine()) return;
+        const pg = d.phaseGroup; if (!pg) throw { code: 'none' };
+        bt = pg.bracketType; real = pg.sets?.pageInfo?.totalPages || 1; total = Math.min(real, 50);   // 60試合×50ページ＝3000試合まで
+        all = all.concat(pg.sets?.nodes || []);
+        page++;
+      } while (page <= total);
+      s.sets = all; s.bt = bt; s.err = null; s.at = Date.now(); s.partial = real > total;
+    } catch (e) { if (job.mine() && e.code !== 'cancel') s.err = e; }
+    sgFinish(t, job, quiet);
+  }
+  // 古くなっていたら読み直す（鍵の誤りのときは、貼り直すまで読みに行かない）
+  function sgRefreshIfOld(t) {
+    const s = sgOf(t.key);
+    const fresh = s.ev && s.sets && Date.now() - s.at < 55000;   // 表がまだない（読みかけで閉じた・プールを変えた）なら、1分待たずに読む
+    if (s.loading || !getToken() || s.err?.code === 'auth' || !t.slug || s.tour || fresh || Date.now() - (s.tried || 0) < 55000) return;
+    s.tried = Date.now();   // 失敗しても1分は空ける（回数の上限を守る）
+    if (!s.ev) sgLoadEvent(t);
+    else if (Date.now() - (s.evAt || 0) > 300000) sgLoadEvent(t, true);   // 5分ごとにフェーズ・プールも読み直す
+    else sgLoadSets(t, true);
+  }
+  // 選手名で目立たせる（打っている途中で欄が消えないよう、表の印だけ付けかえる）
+  function sgHighlight(t) {
+    const el = tileEl(t.key); if (!el) return;
+    const find = (t.sgFind || '').trim().toLowerCase();
+    let first = null;
+    el.querySelectorAll('.sgSet').forEach(box => {
+      const hit = !!find && [...box.querySelectorAll('.nm')].some(n => (n.title || '').toLowerCase().includes(find));
+      box.classList.toggle('hit', hit); box.classList.toggle('dim', !!find && !hit);
+      if (hit && !first) first = box;
+    });
+    first?.scrollIntoView({ block: 'center', inline: 'center', behavior: 'smooth' });
+  }
+  function sgZoom(t, d) {
+    t.sgZoom = Math.round(Math.min(1.6, Math.max(0.5, (t.sgZoom || 1) + d)) * 10) / 10;
+    sgDraw(t, true); save();
+  }
+  function sgClick(t, e) {
+    const b = e.target.closest('[data-act]'); if (!b) return;
+    const act = b.dataset.act, s = sgOf(t.key);
+    if (act === 'tok') sgSaveToken(t, b.closest('.sg').querySelector('.tok'));
+    else if (act === 'url') sgSetUrl(t, b.closest('.sg').querySelector('.surl').value);
+    else if (act === 'ev') sgSetUrl(t, `https://www.start.gg/${b.dataset.slug}`);
+    else if (act === 'reload') { s.ev ? sgLoadSets(t) : sgLoadEvent(t); }
+    else if (act === 'side') { t.sgSide = b.dataset.side; sgDraw(t, true); save(); }
+    else if (act === 'pgPrev') sgStepPool(t, -1);
+    else if (act === 'pgNext') sgStepPool(t, 1);
+    else if (act === 'zin') sgZoom(t, 0.1);
+    else if (act === 'zout') sgZoom(t, -0.1);
+    else if (act === 'change') { sgCancel(t); t.slug = ''; t.title = ''; Object.assign(s, { ev: null, tour: null, sets: null, err: null }); save(); render(); sgDraw(t); }
+    else if (act === 'forget') {
+      if (!confirm('この端末に保存した start.gg の鍵を消します。よろしいですか？')) return;
+      sgCancel(t); setToken(''); sgDraw(t); toast('鍵を消しました');
+    }
+  }
+  // 前・次のプールへ（← → キー・◀ ▶ ボタン。端まで来たら止まる）
+  function sgStepPool(t, d) {
+    const s = sgOf(t.key); if (!s.ev) return;
+    const gs = groupsOf(phasesOf(s.ev).find(p => String(p.id) === t.sgPhase));
+    if (gs.length < 2) return;
+    const i = gs.findIndex(g => String(g.id) === t.sgGroup), j = i + d;
+    if (j < 0 || j >= gs.length) return toast(d > 0 ? 'これが最後のプールです' : 'これが最初のプールです', 1500);
+    t.sgGroup = String(gs[j].id); s.sets = null; t.sgSide = 'w'; save(); sgLoadSets(t);
+    toast(`プール ${gs[j].displayIdentifier}`, 1200);
+  }
+  function sgChange(t, e) {
+    const s = sgOf(t.key);
+    if (e.target.classList.contains('ph')) { t.sgPhase = e.target.value; t.sgGroup = ''; sgPickDefault(t); s.sets = null; t.sgSide = 'w'; save(); sgLoadSets(t); }
+    else if (e.target.classList.contains('pg')) { t.sgGroup = e.target.value; s.sets = null; t.sgSide = 'w'; save(); sgLoadSets(t); }
+  }
+
+  // 列（ラウンド）ごとに並べる。次のラウンドの試合の「前の試合」の順に並べ直して、トーナメントの形に近づける
+  function sgColumns(sets, side) {
+    const rounds = new Map();
+    sets.forEach(x => { if (typeof x.round !== 'number') return; if ((side === 'w') !== (x.round > 0)) return; (rounds.get(x.round) || rounds.set(x.round, []).get(x.round)).push(x); });
+    const keys = [...rounds.keys()].sort((a, b) => Math.abs(a) - Math.abs(b));
+    const cols = keys.map(k => rounds.get(k));
+    for (let i = cols.length - 2; i >= 0; i--) {
+      const next = cols[i + 1], pos = new Map();
+      next.forEach((n, j) => (n.slots || []).forEach((sl, si) => { if (sl && sl.prereqType === 'set' && sl.prereqId != null && !pos.has(String(sl.prereqId))) pos.set(String(sl.prereqId), j * 2 + si); }));
+      cols[i] = cols[i].map((x, idx) => ({ x, idx, p: pos.has(String(x.id)) ? pos.get(String(x.id)) : 1e6 + idx })).sort((a, b) => a.p - b.p).map(o => o.x);
+    }
+    return cols;
+  }
+  const scoreText = (sl) => { const v = sl?.standing?.stats?.score?.value; return v == null ? '' : v < 0 ? 'DQ' : String(v); };
+  function sgSetHtml(x, find) {
+    const live = x.state === 2 || x.state === 6;
+    const names = (x.slots || []).map(sl => sl?.entrant?.name || '');
+    const hit = find && names.some(n => n.toLowerCase().includes(find));
+    const rows = [0, 1].map(i => {
+      const sl = (x.slots || [])[i], en = sl?.entrant;
+      const win = en && x.winnerId != null && String(x.winnerId) === String(en.id);
+      return `<div class="sgRow${win ? ' win' : ''}${en ? '' : ' tbd'}"><span class="nm" title="${esc(en?.name || '')}">${en ? esc(en.name) : '未定'}</span><span class="sc">${esc(scoreText(sl))}</span></div>`;
+    }).join('');
+    return `<div class="sgSet${live ? ' live' : ''}${hit ? ' hit' : find ? ' dim' : ''}">${live ? `<span class="tag">${x.state === 6 ? '呼び出し中' : '対戦中'}</span>` : ''}${rows}</div>`;
+  }
+  // ---- サイドバーの中を描く（keep＝スクロール位置を保つ）----
+  // 上の帯（sgBar）・表（sgBody）・出典（sgFoot）を、状態に合わせて描きかえる。
+  // 打っている途中の欄（選手名など）は、描きかえたあとも打っていた所に戻す（自動で新しくしたときに字が消えないように）
+  function sgDraw(t, keep) {
+    const el = tileEl(t.key); if (!el) return;
+    const body = el.querySelector('.sgBody'), bar = el.querySelector('.sgBar'), foot = el.querySelector('.sgFoot');
+    const s = sgOf(t.key), token = getToken();
+    const sl = body.scrollLeft, st = body.scrollTop;
+    const focus = sgFocusState(el);
+    body.classList.remove('canPan');
+    foot.innerHTML = sgSourceHtml(t);   // 出典（start.gg の API 規約）は表の下にいつも出す
+    const view = sgView(t, s, token);
+    bar.innerHTML = view.bar;
+    body.innerHTML = view.body;
+    if (view.table) {
+      body.classList.add('canPan');
+      if (keep) { body.scrollLeft = sl; body.scrollTop = st; }
+      else if ((t.sgFind || '').trim()) body.querySelector('.sgSet.hit')?.scrollIntoView({ block: 'center', inline: 'center' });
+    }
+    sgRestoreFocus(el, focus);
+  }
+  const sgSourceHtml = (t) => `データ：<a href="${esc(t.slug ? `https://www.start.gg/${t.slug}${t.sgPhase && t.sgGroup ? `/brackets/${t.sgPhase}/${t.sgGroup}` : ''}` : 'https://www.start.gg/')}" target="_blank" rel="noopener">start.gg</a>`;
+  // 打っている欄を覚える・戻す
+  function sgFocusState(el) {
+    const a = document.activeElement;
+    if (!a || !el.contains(a) || a.tagName !== 'INPUT' || !a.className) return null;
+    let start = null, end = null; try { start = a.selectionStart; end = a.selectionEnd; } catch {}
+    return { cls: a.className.split(' ')[0], value: a.value, start, end };
+  }
+  function sgRestoreFocus(el, f) {
+    if (!f) return;
+    const a = el.querySelector('input.' + f.cls); if (!a) return;
+    if (a.value !== f.value) a.value = f.value;
+    a.focus({ preventScroll: true });
+    try { if (f.start != null) a.setSelectionRange(f.start, f.end); } catch {}
+  }
+  // 状態ごとの中身（bar＝上の帯の HTML・body＝表の場所の HTML・table＝表を出したか）
+  function sgView(t, s, token) {
+    if (!token || s.err?.code === 'auth') return { bar: '', body: sgTokenHtml(s, token) };   // 鍵がない・鍵の誤り
+    if (!t.slug) return { bar: '<button data-act="forget" title="この端末の鍵を消す">鍵を消す</button>', body: SG_URL_HTML };   // 大会の URL がまだ
+    const tools = (inner) => `<button data-act="change" title="ほかの大会に変える">大会を変える</button>${inner}<button data-act="reload" title="今すぐ読み直す">↻</button>`
+      + (s.at ? `<span class="upd">${new Date(s.at).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })} 更新</span>` : '');
+    if (s.err && !s.sets) return { bar: tools(''), body: `<div class="sgMsg"><p class="bad">${esc(errText(s.err))}</p><div class="row"><button data-act="reload">もう一度読む</button><button data-act="change">大会を変える</button></div></div>` };
+    if (s.tour) return { bar: tools(''), body: sgEventsHtml(s.tour) };   // 大会だけの URL：部門を選ぶ
+    if (!s.ev || (!s.sets && s.loading)) return { bar: tools(''), body: '<div class="sgMsg">読み込み中…</div>' };
+    return sgTableView(t, s, tools);
+  }
+  function sgTokenHtml(s, token) {
+    return `<div class="sgMsg"><h3>🏆 start.gg のトーナメント表</h3>
+        ${s.err?.code === 'auth' && token ? `<p class="bad">${esc(errText(s.err))}</p>` : ''}
+        <p>start.gg の表を読むには、start.gg の「鍵（トークン）」が1つ要ります（無料・最初の1回だけ）。</p>
+        <ol><li><a href="https://start.gg/admin/profile/developer" target="_blank" rel="noopener">start.gg の開発者設定</a>を開く（start.gg にログインした状態で）</li>
+        <li>「Create new token」を押し、説明に「複数画面」などと入れて「Save」</li>
+        <li>出てきた鍵をコピーして、下の欄に貼って「保存」（鍵はあとから見られないので、すぐコピー）</li></ol>
+        <div class="row"><input class="tok" type="password" placeholder="ここに鍵を貼る" autocomplete="new-password" spellcheck="false"><button class="primary" data-act="tok">保存</button></div>
+        <p class="note">鍵はこの端末の中だけに残り、start.gg 以外には送りません。期限は1年です。ほかの人には見えません。</p></div>`;
+  }
+  const SG_URL_HTML = `<div class="sgMsg"><h3>🏆 どの大会を出しますか？</h3>
+        <p>start.gg の大会（部門）のページの URL を貼ってください。</p>
+        <div class="row"><input class="surl" type="text" placeholder="https://www.start.gg/tournament/〇〇/event/〇〇" autocomplete="off" spellcheck="false"><button class="primary" data-act="url">表示</button></div>
+        <p class="note">表（brackets）のページの URL なら、そのプールから開きます。上の帯の欄に貼っても開きます。</p></div>`;
+  function sgEventsHtml(tour) {
+    const evs = tour.events || [];
+    const n = (v) => Number.isFinite(+v.numEntrants) && +v.numEntrants > 0 ? `（${+v.numEntrants}人）` : '';   // 数だけ出す（文字が来ても HTML にしない）
+    return `<div class="sgMsg"><h3>${esc(tour.name)}</h3><p>どの部門を出しますか？</p>
+        ${evs.map(v => `<button class="ev" data-act="ev" data-slug="${esc(v.slug)}">${esc(v.name)}${n(v)}</button>`).join('') || '<p class="note">部門がありません</p>'}</div>`;
+  }
+  // 対戦の表（フェーズ・プールの切りかえ、勝者側/敗者側、拡大・縮小、選手名）
+  function sgTableView(t, s, tools) {
+    const phs = phasesOf(s.ev), ph = phs.find(p => String(p.id) === t.sgPhase), gs = groupsOf(ph);
+    const sets = s.sets || [];
+    const dbl = sets.some(x => x.round < 0);
+    const rr = s.bt === 'ROUND_ROBIN' || s.bt === 'SWISS';
+    const side = dbl ? t.sgSide : 'w';
+    const phSel = phs.length > 1 ? `<select class="ph" title="フェーズ">${phs.map(p => `<option value="${esc(p.id)}"${String(p.id) === t.sgPhase ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}</select>` : '';
+    const pgSel = gs.length > 1 ? `<button data-act="pgPrev" title="前のプール（← キー）">◀</button><select class="pg" title="プール">${gs.map(g => `<option value="${esc(g.id)}"${String(g.id) === t.sgGroup ? ' selected' : ''}>プール ${esc(g.displayIdentifier)}${g.state === 2 ? '（進行中）' : g.state === 3 ? '（終了）' : ''}</option>`).join('')}</select><button data-act="pgNext" title="次のプール（→ キー）">▶</button>` : '';
+    const sideSeg = dbl && !rr ? `<div class="seg"><button data-act="side" data-side="w" class="${side === 'w' ? 'on' : ''}">勝者側</button><button data-act="side" data-side="l" class="${side === 'l' ? 'on' : ''}">敗者側</button></div>` : '';
+    const find = (t.sgFind || '').trim().toLowerCase();
+    const bar = tools(`${phSel}${pgSel}${sideSeg}<button data-act="zout" title="小さく（ctrl＋ホイールでも）">－</button><button data-act="zin" title="大きく">＋</button>
+      <input class="find" type="search" placeholder="選手名で目立たせる" value="${esc(t.sgFind || '')}">`);
+    const warn = (s.err ? `<div class="sgMsg bad" style="margin:0 0 8px">⚠ ${esc(errText(s.err))}</div>` : '') + (s.partial ? '<div class="sgMsg note" style="margin:0 0 8px">試合が多いため、はじめの 3000 試合だけ出しています。</div>' : '');
+    if (!sets.length) return { bar, body: warn + `<div class="sgMsg">${s.loading ? '読み込み中…' : 'このプールにはまだ対戦がありません（組み合わせの発表前かもしれません）。'}</div>` };
+    const cols = rr ? sgColumns(sets.map(x => ({ ...x, round: Math.abs(x.round) || 1 })), 'w') : sgColumns(sets, side);
+    const colH = Math.max(1, ...cols.map(c => c.length)) * 60;
+    const zoom = Math.min(1.6, Math.max(0.5, +t.sgZoom || 1));
+    const body = warn + `<div class="sgCanvas" style="zoom:${zoom}">${cols.map(c => `<div class="sgCol"><div class="sgColH" title="${esc(c[0]?.fullRoundText || '')}">${esc(c[0]?.fullRoundText || '')}</div><div class="sgSets" style="min-height:${colH}px">${c.map(x => sgSetHtml(x, find)).join('')}</div></div>`).join('')}</div>`;
+    return { bar, body, table: true };
+  }
+  // 15秒ごとに見て、前に読んでから1分たっていたら読み直す（サイドバーを開いているときだけ・この画面が裏にあるときは読まない）
+  setInterval(() => {
+    if (document.visibilityState !== 'visible' || !getToken()) return;
+    if (state.side.open) sgRefreshIfOld(state.side);
+  }, 15000);
 
   // ---------- 配置の計算 ----------
   // 全部同じ：16:9 を保って、1枚がいちばん大きくなる段の数を選ぶ
@@ -462,15 +1102,19 @@ if (location.protocol === 'file:') {
   const BASE_RATIO = { 3: .67, 4: .75, 5: .75, 6: .67, 7: .75, 8: .75 };
   const focusCache = new Map();
   function focusRects(n, W, H) {
+    if (W < 50 || H < 50) return gridRects(n, W, H);   // 窓がとても小さい（隠れている）ときは計算しない（小さい枠が置けず落ちていた）
     if (W < H) return mainRects(n - 1, W, H, 1);   // 縦長：大を横いっぱいに、小はその下へ
     const ck = `${n}:${Math.round(W)}:${Math.round(H)}`;
     let ratio = focusCache.get(ck);
     if (ratio === undefined) {
+      if (focusCache.size > 300) focusCache.clear();   // 窓の大きさを何度も変えても覚えすぎないように
       const cover = (rs) => rs.reduce((s, r) => s + r.w * r.h, 0) / (W * H);
       const base = BASE_RATIO[n] ?? .7;
       let bestR = base, bestC = cover(mainRects(n - 1, W, H, base));
       for (let p = 50; p <= 85; p++) {
-        const rs = mainRects(n - 1, W, H, p / 100), q = rs[1].w / rs[0].w, c = cover(rs);
+        const rs = mainRects(n - 1, W, H, p / 100);
+        if (rs.length < n) continue;   // 小さい枠が置けない比率は使わない
+        const q = rs[1].w / rs[0].w, c = cover(rs);
         if (q < 0.32 || q > 0.55) continue;
         if (c > bestC + 0.03) { bestC = c; bestR = p / 100; }
       }
@@ -481,43 +1125,88 @@ if (location.protocol === 'file:') {
   const isFocus = (n) => state.layout === 'focus' && n >= 3;   // 2枚以下は常に同じ大きさ
 
   // ---------- 描く ----------
+  function thumbHtml(t) {
+    if (t.kind === 'yt') return `<img src="https://i.ytimg.com/vi/${esc(t.vid)}/mqdefault.jpg" alt="">`;
+    if (t.kind === 'tw' && t.ch) return `<img src="https://static-cdn.jtvnw.net/previews-ttv/live_user_${esc(t.ch.toLowerCase())}-320x180.jpg" alt="">`;
+    return '<div class="ph">📺</div>';
+  }
+  const labelOf = (t) => t.title || (t.kind === 'yt' ? t.vid : (t.ch || `Twitch の録画 ${t.vod}`));
+  const isNarrowWin = () => innerWidth < 760;   // 幅の狭い画面（スマホ）：サイドバーは動画の上に重ねる
+  // 全体を描き直す（帯・サイドバー・枠の位置・帯のボタン・隠し中の一覧）
   function render() {
     document.body.classList.toggle('barHidden', state.barHidden);
-    stage.style.top = state.barHidden ? '0px' : $('#bar').offsetHeight + 'px';
+    const barH = state.barHidden ? 0 : $('#bar').offsetHeight;
+    stage.style.top = barH + 'px';
+    renderSide(barH);
     $('#hiddenPop').style.top = ($('#bar').offsetHeight + 4) + 'px';
     $('#hiddenPop').style.maxHeight = Math.max(160, innerHeight - $('#bar').offsetHeight - 14) + 'px';   // 小さい画面でも最後の「表示する」まで届く
+    const { n, focus } = layoutTiles();
+    renderBarButtons(n, focus);
+    renderHiddenList();
+    queueMicrotask(() => followFirst());   // 1番が入れかわったら、1番の音だけにする
+  }
+  // トーナメント表のサイドバー：開いている間は動画を残りの場所に並べる（幅の狭い画面では動画の上に重ねる）
+  function renderSide(barH) {
+    const sd = state.side, sideEl = $('#t-side'), narrowWin = isNarrowWin();
+    document.body.classList.toggle('sideOpen', sd.open);
+    document.body.classList.toggle('narrowWin', narrowWin);
+    const sw = narrowWin ? innerWidth : Math.round(Math.min(Math.max(280, sd.width || innerWidth / 2), Math.max(280, innerWidth - 320)));   // 幅 0＝画面の半分
+    sideEl.style.width = sw + 'px';
+    sideEl.style.top = barH + 'px';
+    sideEl.classList.toggle('narrow', sw < 420);
+    stage.style.right = sd.open && !narrowWin ? sw + 'px' : '0px';
+    const st = sideEl.querySelector('.st');
+    st.textContent = '🏆 ' + (sd.title || 'トーナメント表');
+    st.title = sd.title || '';
+  }
+  // 枠の位置と大きさ、枠の中の印（番号・音・ボタン）を決める
+  function layoutTiles() {
     const W = stage.clientWidth, H = stage.clientHeight;
-    const vis = visible(), n = vis.length, focus = isFocus(n);
-    const rects = n === 1 ? [{ x: 0, y: 0, w: W, h: H }] : !n ? [] : focus ? focusRects(n, W, H) : gridRects(n, W, H);
-
+    const vis = visible(), n = vis.length;
+    // サイドバーを開いているとき：左の場所の上に1番を大きく、その下に残りをはめこむ（2026-11-22 本人）
+    const sideLay = state.side.open && !isNarrowWin() && n >= 2;
+    const focus = sideLay || isFocus(n);
+    const rects = n === 1 ? [{ x: 0, y: 0, w: W, h: H }] : !n ? [] : sideLay ? mainRects(n - 1, W, H, 1) : focus ? focusRects(n, W, H) : gridRects(n, W, H);
     state.tiles.forEach(t => {
-      const el = document.getElementById('t-' + t.key); if (!el) return;
+      const el = tileEl(t.key); if (!el) return;
       if (t.hidden) { el.style.display = 'none'; return; }
       const i = vis.indexOf(t), r = rects[i];
       const w = Math.max(0, r.w - GAP * 2), h = Math.max(0, r.h - GAP * 2);
       Object.assign(el.style, { display: 'block', left: (r.x + GAP) + 'px', top: (r.y + GAP) + 'px', width: w + 'px', height: h + 'px' });
-      el.classList.toggle('sounding', !t.muted);
+      const snd = !t.muted;
+      el.classList.toggle('sounding', snd);
       el.classList.toggle('small', w < 620);
       el.classList.toggle('tiny', w < 300);
       el.querySelector('.num').textContent = i + 1;
-      el.querySelector('.spk').textContent = t.muted ? '' : '🔊';
-      el.querySelector('.snd .ico').textContent = t.muted ? '🔇' : '🔊';
-      el.querySelector('.snd').classList.toggle('on', !t.muted);
+      el.querySelector('.spk').textContent = snd ? '🔊' : '';
+      el.querySelector('.snd .ico').textContent = snd ? '🔊' : '🔇';
+      el.querySelector('.snd').classList.toggle('on', snd);
+      const vol = el.querySelector('.vol');
+      if (document.activeElement !== vol && +vol.value !== t.vol) vol.value = t.vol;   // 音を出したときに音量 0→100 に戻した分も、つまみに映す
       el.querySelector('.name').textContent = t.title || '';
       el.querySelector('.bigBtn').style.display = n < 3 || (focus && i === 0) ? 'none' : '';
     });
-
     $('#empty').style.display = n ? 'none' : 'flex';
     $('#empty').innerHTML = state.tiles.length && !n
       ? 'ぜんぶ隠しています。上の「👁 隠し中」から戻せます'
-      : '上の欄に YouTube の URL を貼って「追加」<br>（最大 8 画面まで）';
+      : '上の欄に YouTube・Twitch の URL を貼って「追加」<br>「🏆 トーナメント表」で右側に start.gg の表も出せます（動画は最大 8 枠まで）';
+    return { n, focus };
+  }
+  // 帯のボタンの字と、押せる・押せない
+  function renderBarButtons(n, focus) {
     $('#count').textContent = `${state.tiles.length}/${MAX}`;
+    $('#addSg').classList.toggle('on', state.side.open);
     $('#layEqual').classList.toggle('on', !focus);
     $('#layFocus').classList.toggle('on', focus);
     $('#layFocus').disabled = n < 3;
     $('#layFocus').title = n < 3 ? '3画面以上のときに使えます' : '1番の位置の画面を大きく（E キー）';
     $('#soundAll').textContent = anySounding() ? '🔇 全部ミュート' : '🔊 全部鳴らす';
-    updatePlayBtn(); $('#clearAll').disabled = !state.tiles.length;
+    $('#soundAll').disabled = !state.tiles.length;
+    updatePlayBtn();
+    $('#clearAll').disabled = !state.tiles.length;
+  }
+  // 隠している画面の一覧（押すと戻る）
+  function renderHiddenList() {
     const hid = state.tiles.filter(t => t.hidden);
     $('#hiddenBtn').textContent = `👁 隠し中 ${hid.length}`;
     $('#hiddenBtn').classList.toggle('has', hid.length > 0);
@@ -525,8 +1214,8 @@ if (location.protocol === 'file:') {
     if (!hid.length) rows.innerHTML = '<div style="color:#9ba2ab;padding:6px">隠している画面はありません。各画面の「👁 隠す」で隠せます。</div>';
     hid.forEach(t => {
       const d = document.createElement('div'); d.className = 'hrow';
-      d.innerHTML = `<img src="https://i.ytimg.com/vi/${t.vid}/mqdefault.jpg" alt=""><div class="t"></div><button class="primary">表示する</button>`;
-      d.querySelector('.t').textContent = t.title || t.vid;
+      d.innerHTML = `${thumbHtml(t)}<div class="t"></div><button class="primary">表示する</button>`;
+      d.querySelector('.t').textContent = labelOf(t);
       d.querySelector('button').onclick = () => setHidden(t.key, false);
       rows.appendChild(d);
     });
@@ -534,7 +1223,6 @@ if (location.protocol === 'file:') {
   }
 
   // ---------- 保存した組み合わせ ----------
-  const esc = (v) => String(v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   function renderPresets() {
     $('#presetSel').innerHTML = '<option value="">保存した組み合わせ</option>' +
       presets.map((p, i) => `<option value="${i}">${esc(p.name)}（${p.tiles.length}）</option>`).join('');
@@ -544,19 +1232,19 @@ if (location.protocol === 'file:') {
     if (!state.tiles.length) return toast('保存する画面がありません');
     const name = prompt('この組み合わせの名前（例：大会A 4画面）');
     if (!name) return;
-    const data = { name, layout: state.layout, tiles: state.tiles.map(({ vid, start, title, hidden }) => ({ vid, start, title, hidden })) };
+    const data = { name, layout: state.layout, tiles: state.tiles.map(pick) };
     const i = presets.findIndex(p => p.name === name);
     if (i >= 0) presets[i] = data; else presets.push(data);
     savePresets(); renderPresets(); toast(`「${name}」を保存しました`);
   };
   $('#presetSel').onchange = (e) => {
     const p = presets[e.target.value]; e.target.value = ''; if (!p) return;
-    [...state.tiles].forEach(t => removeTile(t.key));
+    removeAllTiles();   // 今の枠を外してから、保存した枠を並べる（隠し中・名前は保存のまま・音は全部ミュートで始まる）
     p.tiles.filter(okTile).slice(0, MAX).forEach((x, i) => {
       const t = cleanTile({ ...x, key: newKey(i), vol: 100 }, i);
       state.tiles.push(t); makeTile(t);
     });
-    if (p.layout) state.layout = p.layout;
+    if (p.layout) state.layout = p.layout === 'equal' ? 'equal' : 'focus';
     render(); save(); toast(`「${p.name}」を開きました`);
   };
   $('#presetDel').onclick = () => {
@@ -571,9 +1259,10 @@ if (location.protocol === 'file:') {
   // ---------- そのほかの操作 ----------
   let toastTimer;
   function toast(s, ms = 3500) { const el = $('#toast'); el.textContent = s; el.classList.add('on'); clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('on'), ms); }
-  const setLayout = (l) => { state.layout = l; render(); save(); };
+  const setLayout = (l) => { const ch = state.layout !== l; state.layout = l; render(); save(); if (ch) followFirst(true); };
   const toggleBar = () => { state.barHidden = !state.barHidden; render(); save(); };
   $('#addBtn').onclick = addFromInput;
+  $('#addSg').onclick = addBracket;
   $('#url').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); addFromInput(); } });
   $('#layEqual').onclick = () => setLayout('equal');
   $('#layFocus').onclick = () => setLayout('focus');
@@ -589,7 +1278,7 @@ if (location.protocol === 'file:') {
   document.addEventListener('pointerdown', (e) => {
     if (!e.target.closest('#hiddenPop') && !e.target.closest('#hiddenBtn')) $('#hiddenPop').classList.remove('on');
   });
-  $('#helpBtn').onclick = () => toast('1〜8：その画面だけ鳴らす　0：全部ミュート/全部鳴らす　P：全部停止/全部再生　E：全部同じ/1つ大きく　H：帯を隠す　画面の左上の ✥ をつかんでほかの画面に落とすと入れかえ', 7000);
+  $('#helpBtn').onclick = () => toast('1〜8：その画面だけ鳴らす　0：全部ミュート/全部鳴らす　P：全部停止/全部再生　E：全部同じ/1つ大きく　H：帯を隠す　T：トーナメント表を出す/しまう　画面の左上の ✥ をつかんでほかの画面に落とすと入れかえ　トーナメント表：中をつかんで動かす・ctrl＋ホイールで拡大縮小・左の端をつかんで幅を変える', 8000);
   $('#hideBar').onclick = toggleBar;
   $('#showBar').onclick = toggleBar;
   $('#fsBtn').onclick = () => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
@@ -597,24 +1286,31 @@ if (location.protocol === 'file:') {
 
   document.addEventListener('keydown', (e) => {
     if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName) || e.ctrlKey || e.altKey || e.metaKey) return;
+    const arrow = e.key === 'ArrowLeft' || e.key === 'ArrowRight';
+    if (e.repeat && !arrow) return;   // 押しっぱなしで出す・しまうがくり返されないように（← → だけはくり返してよい）
     if (/^[1-8]$/.test(e.key)) { const t = visible()[+e.key - 1]; if (t) solo(t.key); }
     else if (e.key === '0') toggleAllSound();
     else if (e.key === 'p' || e.key === 'P') togglePlayAll();
     else if (e.key === 'e' || e.key === 'E') setLayout(state.layout === 'focus' ? 'equal' : 'focus');
     else if (e.key === 'h' || e.key === 'H') toggleBar();
+    else if (e.key === 't' || e.key === 'T') addBracket();
+    else if (arrow && state.side.open) { e.preventDefault(); sgStepPool(state.side, e.key === 'ArrowRight' ? 1 : -1); }
     else if (e.key === 'Escape') $('#hiddenPop').classList.remove('on');
   });
-  // 動画を押すとキーが YouTube 側に取られるので、すぐこちらに戻す（数字キーで切りかえられるように）
+  // 動画を押すとキーが YouTube・Twitch 側に取られるので、すぐこちらに戻す（数字キーで切りかえられるように）
   window.addEventListener('blur', () => setTimeout(() => {
     if (document.activeElement && document.activeElement.tagName === 'IFRAME') { document.activeElement.blur(); window.focus(); }
   }, 0));
 
   // ---------- 始める ----------
   state.tiles.forEach(makeTile);
+  $('#sideClose').onclick = () => setSide(false);
+  $('#t-side .sideGrip').addEventListener('pointerdown', startSize);
   renderPresets(); render();
-  window.onYouTubeIframeAPIReady = () => { apiReady = true; state.tiles.forEach(makePlayer); };
+  sgInit(state.side, $('#t-side'));
+  window.onYouTubeIframeAPIReady = () => { apiReady = true; state.tiles.filter(t => t.kind === 'yt').forEach(makePlayer); };
   const s = document.createElement('script'); s.src = 'https://www.youtube.com/iframe_api'; document.head.appendChild(s);
-  window.__ytmulti = { state, players, render, swap, focusRects, gridRects };   // 確かめ用
+  window.__ytmulti = { state, players, render, swap, focusRects, gridRects, parse, sg, sgColumns };   // 確かめ用
 })();
 </script>
 </body>
