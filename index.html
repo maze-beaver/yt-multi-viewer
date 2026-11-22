@@ -27,11 +27,11 @@
   button.primary:hover { background: #dcdcdc; }
 
   /* ---- 上の帯 ---- */
-  #bar { position: fixed; top: 0; left: 0; right: 0; min-height: 48px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  #bar { position: fixed; top: 0; left: 0; right: 0; min-height: 48px; display: flex; flex-wrap: nowrap; align-items: center; gap: 8px;
     padding: 7px 10px; background: var(--bar); border-bottom: 1px solid var(--line); z-index: 20; }
   #bar .title { font-weight: 700; white-space: nowrap; }
   #testBadge { background: #ffd54a; color: #111; font-weight: 700; border-radius: 6px; padding: 2px 7px; white-space: nowrap; }
-  #url { flex: 0 1 360px; min-width: 150px; height: 32px; resize: none; overflow: hidden; white-space: nowrap;
+  #url { flex: 0 1 360px; min-width: var(--urlMin, 260px); height: 32px; resize: none; overflow: hidden; white-space: nowrap;
     background: #0f1113; color: var(--text); border: 1px solid var(--line); border-radius: 7px; padding: 6px 9px; line-height: 18px; }
   #url::placeholder { color: #6d747d; }
   #url:focus { outline: none; border-color: #bbb; }
@@ -50,16 +50,25 @@
   #showBar { position: fixed; top: 6px; left: 6px; z-index: 30; opacity: .3; display: none; }
   #showBar:hover { opacity: 1; }
   body.barHidden #showBar { display: block; }
-  @media (max-width: 1450px) { #hideBar .lbl2, #addSg .lbl2 { display: none; } #url { flex-basis: 240px; } #bar .title { display: none; } }
+  /* 2026-11-22 本人「画面上部のボタンが2列になっちゃうのが良くない」→ 帯はいつも1列。入りきらなければ、
+     ①ボタンの字を省いてアイコンだけ（barCompact）→ ②よく使わないものから順に「⋯」の中へ（fitBar が測って決める） */
+  body.barCompact #bar .title, body.barCompact #bar .lb, body.barCompact #bar .lbl2 { display: none; }
+  body.barMoved #bar .sep { display: none; }
+  #moreBtn { display: none; font-weight: 700; letter-spacing: 1px; }
+  body.barMoved #moreBtn { display: inline-block; }
+  #moreBtn.on { background: var(--btn-h); border-color: #bbb; }
+  #morePop { position: fixed; right: 8px; z-index: 36; display: none; flex-direction: column; align-items: stretch; gap: 6px; background: #1b1e22;
+    border: 1px solid var(--line); border-radius: 10px; padding: 8px; min-width: 210px; max-height: calc(100vh - 70px); overflow-y: auto; box-shadow: 0 10px 30px rgba(0,0,0,.5); }
+  #morePop.on { display: flex; }
+  #morePop > button { text-align: left; }
+  #morePop .seg { align-self: stretch; } #morePop .seg button { flex: 1; }
+  #morePop #presetSel { max-width: none; }
+  #morePop #count { padding: 0 2px; }
+  #morePop #presetSave::before, #morePop #presetDel::before { content: "組み合わせを"; } #morePop #helpBtn::after { content: " キー操作"; }
   @media (max-width: 760px) {
-    #bar { height: auto; flex-wrap: wrap; padding: 6px max(8px, env(safe-area-inset-right, 0px)) 6px max(8px, env(safe-area-inset-left, 0px)); gap: 6px; }
-    #bar .title, #count, #helpBtn, #fsBtn, #bar .sep, #bar .spacer { display: none; }
-    #url { flex: 1 1 200px; font-size: 16px; }   /* 16px 未満だと iPhone が勝手に拡大する */
-    #bar button { padding: 6px 9px; }
+    #bar { padding: 6px max(8px, env(safe-area-inset-right, 0px)) 6px max(8px, env(safe-area-inset-left, 0px)); gap: 6px; }
+    #url { font-size: 16px; }   /* 16px 未満だと iPhone が勝手に拡大する */
     #hiddenPop { left: 8px !important; right: 8px; width: auto; }
-    #bar > * { order: 5; }
-    #url { order: 1; } #addBtn { order: 2; } #addSg { order: 3; } #hideBar { order: 4; }
-    #hideBar .lbl2 { display: none; }
   }
 
   /* ---- 隠した画面の一覧 ---- */
@@ -122,8 +131,8 @@
     border-left: 1px solid var(--line); z-index: 15; }
   body.sideOpen #t-side { display: flex; }
   body.barHidden #t-side { top: 0; }
-  .sideHead { display: flex; align-items: center; gap: 8px; padding: 6px 8px 6px 14px; border-bottom: 1px solid var(--line); background: var(--bar); }
-  .sideHead .st { flex: 1; min-width: 0; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sideHead { display: flex; align-items: center; gap: 8px; padding: 5px 8px 5px 12px; border-bottom: 1px solid var(--line); background: var(--bar); }
+  .sideHead .st { flex: 1; min-width: 0; font-weight: 700; font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   /* 2026-11-22 本人「サイドバーをトーナメントと X で切りかえ」「横に窓で開くで」→ X は埋め込めないので、本物の窓をこの場所に重ねて開く */
   .sideGrip { position: absolute; left: -4px; top: 0; bottom: 0; width: 8px; cursor: ew-resize; touch-action: none; z-index: 2; }
   .sideGrip:hover, body.sizing .sideGrip { background: rgba(255,255,255,.25); }
@@ -132,22 +141,22 @@
   body.narrowWin .sideGrip { display: none; }   /* 幅の狭い画面ではサイドバーは全面に重ねるので、幅は変えない */
   #addSg.on { background: var(--accent); color: #111; font-weight: 700; border-color: var(--accent); }
   .sg { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; color: var(--text); }
-  .sgBody { flex: 1; min-height: 0; overflow: auto; padding: 12px; }
+  .sgBody { flex: 1; min-height: 0; overflow: auto; padding: 10px; }
   .sgBody.canPan { cursor: grab; }
   .sgBody.panning { cursor: grabbing; user-select: none; }
   /* 2026-11-22 本人「小さめに表示したときに文字がはっきり表示されない」→ 縮めても字は 10px より小さくしない（--fs を JS で決める）・字の色を明るく */
-  .sgCanvas { position: relative; display: flex; gap: 22px; width: max-content; min-height: 100%; font-size: var(--fs, 12px); -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
-  .sgCol { display: flex; flex-direction: column; width: 200px; flex: none; }
+  .sgCanvas { position: relative; display: flex; gap: 18px; width: max-content; min-height: 100%; font-size: var(--fs, 11px); -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+  .sgCol { display: flex; flex-direction: column; width: 17em; flex: none; }
   .sgColH { color: #b4bac1; font-size: 1em; font-weight: 700; text-align: center; padding: 0 0 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .sgSets { flex: 1; display: flex; flex-direction: column; justify-content: space-around; gap: 10px; }
   .sgLines { position: absolute; left: 0; top: 0; pointer-events: none; overflow: visible; }
   .sgLines path { fill: none; stroke: #5a616a; stroke-width: 1.5; }
   .sgCol { position: relative; z-index: 1; }
   .sgSet { background: #1b1e23; border: 1px solid #3a3f46; border-radius: 6px; overflow: hidden; font-size: 1em; position: relative; flex: none; }
-  .sgRow { display: flex; align-items: stretch; height: max(24px, 2em); }
+  .sgRow { display: flex; align-items: stretch; height: max(21px, 1.95em); }
   .sgRow + .sgRow { border-top: 1px solid #3a3f46; }
-  .sgRow .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #d2d6db; font-weight: 500; padding: 0 7px; line-height: max(24px, 2em); }
-  .sgRow .sc { width: max(26px, 2.2em); text-align: center; background: #25292f; color: #d2d6db; font-weight: 600; line-height: max(24px, 2em); flex: none; }
+  .sgRow .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #d2d6db; font-weight: 500; padding: 0 7px; line-height: max(21px, 1.95em); }
+  .sgRow .sc { width: max(24px, 2.2em); text-align: center; background: #25292f; color: #d2d6db; font-weight: 600; line-height: max(21px, 1.95em); flex: none; }
   .sgRow.win .nm, .sgRow.win .sc { color: #fff; font-weight: 700; }
   .sgRow.win .sc { background: #4a5059; }
   .sgRow.tbd .nm { color: #868e97; font-style: italic; }
@@ -161,17 +170,17 @@
   .sgRow .sd { display: inline-block; min-width: 1.6em; margin-right: 5px; color: #868e97; font-size: max(var(--fm, 10px), .85em); font-style: normal; font-weight: 500; text-align: right; }
   .sgRow .sd:empty { display: none; }
   .sgBar .tog.on { background: var(--accent); color: #111; font-weight: 700; border-color: var(--accent); }
-  .sgLegend { color: var(--sub); font-size: 12px; margin: 0 0 8px; }
+  .sgLegend { color: var(--sub); font-size: 11px; margin: 0 0 8px; }
   .sgSet .tag { position: absolute; right: max(30px, 2.5em); top: 0; font-size: max(var(--fm, 10px), .8em); background: var(--danger); color: #fff; border-radius: 0 0 4px 4px; padding: 0 5px; line-height: 14px; }
   .sgSet.hit { outline: 2px solid #ffd54a; outline-offset: 1px; }
   .sgSet.dim { opacity: .35; }
-  .sgBar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 6px 8px; background: var(--bar); border-bottom: 1px solid var(--line); font-size: 12px; }
+  .sgBar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 6px 8px; background: var(--bar); border-bottom: 1px solid var(--line); font-size: 11.5px; }
   .sgBar select, .sgBar input { background: #0f1113; border: 1px solid var(--line); border-radius: 6px; padding: 3px 6px; max-width: 170px; }
   .sgBar input { width: 130px; }
-  .sgBar button { padding: 3px 9px; }
-  .sgBar .seg button { padding: 3px 9px; }
+  .sgBar button { padding: 3px 8px; }
+  .sgBar .seg button { padding: 3px 8px; }
   .sgBar .upd { color: var(--sub); white-space: nowrap; }
-  .sgFoot { padding: 4px 10px; border-top: 1px solid var(--line); background: var(--bar); color: var(--sub); font-size: 12px; text-align: right; }   /* 出典（start.gg の API 規約） */
+  .sgFoot { padding: 4px 10px; border-top: 1px solid var(--line); background: var(--bar); color: var(--sub); font-size: 11px; text-align: right; }   /* 出典（start.gg の API 規約） */
   .sgFoot a { color: #fff; }
   #t-side.narrow .sgBar .upd { display: none; }
   .sgMsg { max-width: 560px; margin: 10px auto; line-height: 1.85; color: #ddd; font-size: 13px; }
@@ -201,11 +210,11 @@
   <div class="seg" title="E キーで切りかえ">
     <button id="layEqual">全部同じ</button><button id="layFocus">1つ大きく</button>
   </div>
-  <button id="soundAll" title="0 キー">🔇 全部ミュート</button>
-  <button id="playAll" title="P キー">⏸ 全部停止</button>
-  <button id="hiddenBtn">👁 隠し中 0</button>
+  <button id="soundAll" title="0 キー">🔇<span class="lb"> 全部ミュート</span></button>
+  <button id="playAll" title="P キー">⏸<span class="lb"> 全部停止</span></button>
+  <button id="hiddenBtn">👁<span class="lb"> 隠し中</span> 0</button>
   <div class="spacer"></div>
-  <button id="clearAll" class="x2" title="並んでいる画面を全部外す（保存した組み合わせは残る）">🗑 全部消す</button>
+  <button id="clearAll" class="x2" title="並んでいる画面を全部外す（保存した組み合わせは残る）">🗑<span class="lb"> 全部消す</span></button>
   <select id="presetSel" class="wide" title="保存した組み合わせ"><option value="">保存した組み合わせ</option></select>
   <button id="presetSave" class="wide">保存</button>
   <button id="presetDel" class="wide">消す</button>
@@ -213,11 +222,13 @@
   <button id="helpBtn" title="キー操作">？</button>
   <button id="fsBtn">全画面</button>
   <button id="hideBar" title="帯を隠す（H キー）">▲<span class="lbl2"> 帯を隠す</span></button>
+  <button id="moreBtn" title="入りきらないボタン">⋯</button>
 </div>
+<div id="morePop"></div>
 <button id="showBar" title="H キー">☰ 帯を出す</button>
 <div id="hiddenPop"><h4>隠している画面（押すと戻ります）</h4><div id="hiddenRows"></div><button class="all" id="showAllBtn">全部表示する</button></div>
 <div id="stage"><div id="empty"></div></div>
-<div id="t-side"><div class="sideGrip" title="つかんで左右に動かすと幅が変わります"></div>
+<div id="t-side"><div class="sideGrip" title="つかんで左右に動かすと幅が変わります（ダブルクリックで動画にぴったりの幅に戻る）"></div>
   <div class="sideHead"><span class="st">トーナメント表</span><button id="sideClose" title="閉じる（T キー）">✕ 閉じる</button></div>
   <div class="sg"><div class="sgBar"></div><div class="sgBody"></div><div class="sgFoot"></div></div></div>
 <div id="toast"></div>
@@ -286,7 +297,7 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify({
     tiles: state.tiles.map(t => ({ key: t.key, vol: t.vol, muted: !!t.muted, ...pick(t) })),   // 音のオン/オフも覚える（開き直したとき元のとおり鳴らす）
     layout: state.layout, barHidden: state.barHidden,
-    side: { open: state.side.open, width: state.side.width, ...pick(state.side) } })); } catch {} };
+    side: { open: state.side.open, width: state.side.width, manual: !!state.side.manual, dragW: state.side.dragW || 0, ...pick(state.side) } })); } catch {} };
   const newKey = (i = 0) => 'k' + Date.now().toString(36) + i + Math.random().toString(36).slice(2, 6);
   const cleanTile = (t, i) => {
     const k = kindOf(t);
@@ -308,7 +319,7 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
     // トーナメント表のサイドバー（key は 'side' 固定・中身の形は start.gg の枠と同じ）
     side: { ...cleanTile({ ...(saved.side && typeof saved.side === 'object' ? saved.side : {}), kind: 'sg', key: 'side' }, 0), key: 'side',
       // width：0＝画面の半分（はじめ・2026-11-22 本人「最初開いたタイミングでは画面の半分」）／左の端をつかんで動かすとその幅を覚える
-      open: !!saved.side?.open, width: Math.min(3000, Math.max(0, parseInt(saved.side?.width, 10) || 0)),
+      open: !!saved.side?.open, manual: saved.side?.manual ?? !!saved.side?.width, dragW: parseInt(saved.side?.dragW, 10) || 0, width: Math.min(3000, Math.max(0, parseInt(saved.side?.width, 10) || 0)),
       // mode：いつも 'sg'（X はサイドバーに入れず、帯の X ボタンで新しいタブに開く・2026-11-22）
       mode: 'sg' },
   };
@@ -419,7 +430,7 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
     if (e.button !== 0) return;
     e.preventDefault();
     document.body.classList.add('sizing');
-    const mv = (ev) => { state.side.width = Math.round(Math.min(Math.max(280, innerWidth - ev.clientX), Math.max(280, innerWidth - 320))); render(); };
+    const mv = (ev) => { state.side.manual = true; state.side.dragW = innerWidth; state.side.width = Math.round(Math.min(Math.max(300, innerWidth - ev.clientX), Math.max(300, innerWidth - 320))); render(); };
     // 離した・取り消された（pointercancel）のどちらでも、同じ後始末をする（Codex 指摘・取り残し防止）
     const up = () => {
       document.body.classList.remove('sizing');
@@ -625,7 +636,8 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
   function updatePlayBtn() {
     const b = document.getElementById('playAll'); if (!b) return;
     const playing = anyPlaying();
-    b.textContent = playing ? '⏸ 全部停止' : '▶ 全部再生';
+    b.innerHTML = playing ? '⏸<span class="lb"> 全部停止</span>' : '▶<span class="lb"> 全部再生</span>';
+    b.title = (playing ? '全部停止' : '全部再生') + '（P キー）';
     b.disabled = !visibleMedia().length;
   }
   function togglePlayAll() {
@@ -782,10 +794,11 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
   const Q_PGROUPS = `query($id:ID!,$page:Int!){ phase(id:$id){ phaseGroups(query:{page:$page,perPage:50}){ pageInfo{ totalPages } nodes{ id displayIdentifier bracketType state } } } }`;
   const Q_TOUR = `query($slug:String){ tournament(slug:$slug){ name slug events{ name slug numEntrants } } }`;
   // 試合の一覧。シード（seed・initialSeedNum）と前の試合の勝ち/負け（prereqPlacement）は、行き先と予想に使う
-  const Q_SETS = `query($id:ID!,$page:Int!){ phaseGroup(id:$id){ id bracketType sets(page:$page, perPage:60, sortType:STANDARD){ pageInfo{ totalPages }
+  // 2026-11-22 本人の画面に「1回で返せるのは 1000 件まで（1072）」が出た → 1回に頼む試合の数を変えられるように（$per）
+  const Q_SETS = `query($id:ID!,$page:Int!,$per:Int!){ phaseGroup(id:$id){ id bracketType sets(page:$page, perPage:$per, sortType:STANDARD){ pageInfo{ totalPages }
     nodes{ id round fullRoundText state winnerId identifier slots{ prereqId prereqType prereqPlacement seed{ seedNum entrant{ id name initialSeedNum } } entrant{ id name initialSeedNum } standing{ stats{ score{ value } } } } } } } }`;
   // 上の項目が使えなかったときの予備（表はこれまでどおり出す）
-  const Q_SETS_BASIC = `query($id:ID!,$page:Int!){ phaseGroup(id:$id){ id bracketType sets(page:$page, perPage:60, sortType:STANDARD){ pageInfo{ totalPages }
+  const Q_SETS_BASIC = `query($id:ID!,$page:Int!,$per:Int!){ phaseGroup(id:$id){ id bracketType sets(page:$page, perPage:$per, sortType:STANDARD){ pageInfo{ totalPages }
     nodes{ id round fullRoundText state winnerId identifier slots{ prereqId prereqType entrant{ id name } standing{ stats{ score{ value } } } } } } } }`;
   let sgRich = true;
   const errText = (e) => e.code === 'auth' ? '鍵（トークン）が正しくないか、期限が切れています。下の欄から貼り直してください。'
@@ -905,6 +918,7 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
     if (!g) g = gs.find(x => x.state === 2) || gs.find(x => x.state !== 3) || gs[0];
     t.sgGroup = g ? String(g.id) : '';
   }
+  let sgPer = 40, sgPerBasic = 60;
   async function sgLoadSets(t, quiet) {
     if (!t.sgGroup) {   // プールがまだないフェーズ：前の読みかけをやめて、空の表を出す（Codex 指摘・前のプールの返事が入りこまないように）
       const s = sgCancel(t); s.sets = []; s.bt = null; s.partial = false; s.err = null; sgDraw(t);
@@ -912,18 +926,24 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
     }
     const job = sgBegin(t, quiet), { s } = job, group = t.sgGroup;
     try {
-      let page = 1, total = 1, all = [], bt = null, real = 1;
+      let page = 1, total = 1, all = [], bt = null, real = 1, tries = 0;
+      // 1回に頼む試合の数：1試合あたり最大およそ 18 件（2人ぶんの名前・シード・得点）なので 40 試合＝約 720 件で、start.gg の 1回 1000 件の上限より下
+      let per = sgRich ? sgPer : sgPerBasic;
       do {
         let d;
-        try { d = await gql(sgRich ? Q_SETS : Q_SETS_BASIC, { id: group, page }, job); }
-        catch (e) {   // 足した項目を start.gg が受けつけないとき：予備の問い合わせで最初から読み直す
+        try { d = await gql(sgRich ? Q_SETS : Q_SETS_BASIC, { id: group, page, per }, job); }
+        catch (e) {
+          // 1回の量が多すぎた（complexity）：数を半分にして最初から読み直す（3回まで）。次からもその数で頼む
+          if (e.code === 'api' && /complexity|objects may be returned/i.test(e.msg || '') && per > 10 && tries < 3) {
+            tries++; per = Math.max(10, Math.floor(per / 2)); if (sgRich) sgPer = per; else sgPerBasic = per; page = 1; all = []; continue;
+          }
+          // 足した項目を start.gg が受けつけないとき：予備の問い合わせで最初から読み直す
           if (!(sgRich && e.code === 'api' && /field|argument|type/i.test(e.msg || ''))) throw e;
-          sgRich = false; page = 1; all = [];
-          d = await gql(Q_SETS_BASIC, { id: group, page }, job);
+          sgRich = false; page = 1; all = []; per = sgPerBasic; tries = 0; continue;   // 予備でも量のエラーなら上で半分にする（Codex 指摘）
         }
         if (!job.mine()) return;
         const pg = d.phaseGroup; if (!pg) throw { code: 'none' };
-        bt = pg.bracketType; real = pg.sets?.pageInfo?.totalPages || 1; total = Math.min(real, 50);   // 60試合×50ページ＝3000試合まで
+        bt = pg.bracketType; real = pg.sets?.pageInfo?.totalPages || 1; total = Math.min(real, Math.max(1, Math.floor(2000 / per)));   // 1回の読み直しで 2000 試合まで（60秒 80 回の上限を守る）
         all = all.concat(pg.sets?.nodes || []);
         page++;
       } while (page <= total);
@@ -1239,17 +1259,17 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
     const togs = rr ? '' : `<button data-act="proj" class="tog${proj ? ' on' : ''}" aria-pressed="${proj}" title="まだ決まっていない枠に、シードが上の人が勝ち進んだときに来る人を薄く出す（終わった試合の結果は反映）">予想</button>`;
     const bar = tools(`${phSel}${pgSel}${sideSeg}${togs}<button data-act="zout" title="小さく（ctrl＋ホイールでも）">－</button><button data-act="zin" title="大きく">＋</button>
       <input class="find" type="search" placeholder="選手名で目立たせる" value="${esc(t.sgFind || '')}">`);
-    const warn = (s.err ? `<div class="sgMsg bad" style="margin:0 0 8px">⚠ ${esc(errText(s.err))}</div>` : '') + (s.partial ? '<div class="sgMsg note" style="margin:0 0 8px">試合が多いため、はじめの 3000 試合だけ出しています。</div>' : '');
+    const warn = (s.err ? `<div class="sgMsg bad" style="margin:0 0 8px">⚠ ${esc(errText(s.err))}</div>` : '') + (s.partial ? `<div class="sgMsg note" style="margin:0 0 8px">試合が多いため、はじめの ${s.sets.length} 試合だけ出しています。</div>` : '');
     if (!sets.length) return { bar, body: warn + `<div class="sgMsg">${s.loading ? '読み込み中…' : 'このプールにはまだ対戦がありません（組み合わせの発表前かもしれません）。'}</div>` };
     const cols = rr ? sgColumns(sets.map(x => ({ ...x, round: Math.abs(x.round) || 1 })), 'w') : sgColumns(sets, side);
     const zoom = Math.min(1.6, Math.max(0.5, +t.sgZoom || 1));
-    const fsN = Math.max(12, 10 / zoom);   // 縮めても、画面の上で字が 10px を下回らないように
+    const fsN = Math.max(11, Math.ceil(1000 / zoom) / 100);   // ふつうは 11px（2026-11-22 本人「フォントがちょっと大きく感じる」）・縮めても、画面の上で字が 10px を下回らないように
     const fmN = Math.ceil(1000 / zoom) / 100;   // 切り上げ（丸めで 9.99px にならないように・Codex 指摘）   // 小さい字（記号・シード）も画面の上で 10px を下回らないように
-    const colH = Math.max(1, ...cols.map(c => c.length)) * (Math.max(60, Math.round(fsN * 4 + 14)) + (dest ? Math.round(Math.max(fmN, fsN * 0.85) * 1.5) : 0));   // 1試合（2行＋上の行）ぶんの高さ＋すき間
+    const colH = Math.max(1, ...cols.map(c => c.length)) * (Math.max(54, Math.round(fsN * 3.9 + 12)) + (dest ? Math.round(Math.max(fmN, fsN * 0.85) * 1.5) : 0));   // 1試合（2行＋上の行）ぶんの高さ＋すき間
     const o = { find, dest, proj, info: dest || proj ? sgBracket(sets) : null };
     const legend = !proj ? '' : o.info.noSeed ? '<div class="sgLegend">斜めの薄い字＝予想（シードが読めなかったため、上の枠の人が勝ち進んだとき）</div>'
       : '<div class="sgLegend">斜めの薄い字＝予想（シードが上の人が勝ち進んだとき）・名前の前の数字＝シード</div>';
-    const body = warn + legend + `<div class="sgCanvas${proj ? ' withSeed' : ''}" style="zoom:${zoom};--fs:${fsN.toFixed(2)}px;--fm:${fmN}px">${cols.map(c => `<div class="sgCol"><div class="sgColH" title="${esc(c[0]?.fullRoundText || '')}">${esc(c[0]?.fullRoundText || '')}</div><div class="sgSets" style="min-height:${colH}px">${c.map(x => sgSetHtml(x, o)).join('')}</div></div>`).join('')}</div>`;
+    const body = warn + legend + `<div class="sgCanvas${proj ? ' withSeed' : ''}" style="zoom:${zoom};--fs:${fsN}px;--fm:${fmN}px">${cols.map(c => `<div class="sgCol"><div class="sgColH" title="${esc(c[0]?.fullRoundText || '')}">${esc(c[0]?.fullRoundText || '')}</div><div class="sgSets" style="min-height:${colH}px">${c.map(x => sgSetHtml(x, o)).join('')}</div></div>`).join('')}</div>`;
     return { bar, body, table: true };
   }
   // 15秒ごとに見て、前に読んでから1分たっていたら読み直す（サイドバーを開いているときだけ・この画面が裏にあるときは読まない）
@@ -1348,18 +1368,19 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
     return '<div class="ph">📺</div>';
   }
   const labelOf = (t) => t.title || (t.kind === 'yt' ? t.vid : (t.ch || `Twitch の録画 ${t.vod}`));
-  const isNarrowWin = () => innerWidth < 760;   // 幅の狭い画面（スマホ）：サイドバーは動画の上に重ねる
+  const isNarrowWin = () => innerWidth < 760 || (innerWidth < 1024 && innerHeight > innerWidth);   // 幅の狭い画面（スマホ・縦にしたタブレット）：サイドバーは動画の上に重ねる
   // 全体を描き直す（帯・サイドバー・枠の位置・帯のボタン・隠し中の一覧）
   function render() {
     document.body.classList.toggle('barHidden', state.barHidden);
+    const nv = visible().length;
+    renderBarButtons(nv, (state.side.open && !isNarrowWin() && nv >= 2) || isFocus(nv));
+    renderHiddenList();
+    fitBar();
     const barH = state.barHidden ? 0 : $('#bar').offsetHeight;
     stage.style.top = barH + 'px';
     renderSide(barH);
-    $('#hiddenPop').style.top = ($('#bar').offsetHeight + 4) + 'px';
-    $('#hiddenPop').style.maxHeight = Math.max(160, innerHeight - $('#bar').offsetHeight - 14) + 'px';   // 小さい画面でも最後の「表示する」まで届く
-    const { n, focus } = layoutTiles();
-    renderBarButtons(n, focus);
-    renderHiddenList();
+    // 隠し中の一覧の位置は、開くときに押したボタンの下へ（帯の中でも ⋯ の中でも）
+    layoutTiles();
     queueMicrotask(() => followFirst());   // 1番が入れかわったら、1番の音だけにする
   }
   // トーナメント表のサイドバー：開いている間は動画を残りの場所に並べる（幅の狭い画面では動画の上に重ねる）
@@ -1367,7 +1388,7 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
     const sd = state.side, sideEl = $('#t-side'), narrowWin = isNarrowWin();
     document.body.classList.toggle('sideOpen', sd.open);
     document.body.classList.toggle('narrowWin', narrowWin);
-    const sw = narrowWin ? innerWidth : Math.round(Math.min(Math.max(280, sd.width || innerWidth / 2), Math.max(280, innerWidth - 320)));   // 幅 0＝画面の半分
+    const sw = narrowWin ? innerWidth : autoSideW(barH, sd.manual && sd.width ? Math.round(Math.min(Math.max(300, sd.width), Math.max(300, innerWidth - 320))) : 0, sd.dragW === innerWidth);   // 自分で決めていなければ「動画にぴったり」
     sideEl.style.width = sw + 'px';
     sideEl.style.top = barH + 'px';
     sideEl.classList.toggle('narrow', sw < 420);
@@ -1375,6 +1396,71 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
     const st = sideEl.querySelector('.st');
     st.textContent = sd.title || 'トーナメント表';
     st.title = sd.title || '';
+  }
+  // サイドバーの「ぴったり」の幅（2026-11-22 本人「1の一番大きく表示する画面が最大限表示されつつ、小さい枠も余すところなくちゃんと幅を使ってほしい」）
+  // 動画の場所の幅をためして、黒い余白がいちばん少なく、その中で1番がいちばん大きくなる幅を選ぶ。残りがサイドバー（300px より狭くしない）
+  const sideCache = new Map();
+  // pref＝自分で決めた幅。同じ画面の幅でつかんで決めた幅（exact）はそのまま。
+  // ほかの画面の幅では、その幅で黒い余白が 5% 以内ならそのまま、余白が出るなら1番が最大になる幅（端のダブルクリックでも同じ）
+  function autoSideW(barH, pref, exact) {
+    const total = innerWidth, H = innerHeight - barH, n = visible().length;
+    if (pref && (exact || n < 2 || H < 50)) return pref;
+    const lo = 300, hi = Math.max(lo, total - 320), ck = n + ':' + total + ':' + H + ':' + pref;
+    if (sideCache.has(ck)) return sideCache.get(ck);
+    let w;
+    if (!n || H < 50) w = pref || Math.round(total / 2);
+    else if (n === 1) w = pref || total - Math.round(H * 16 / 9);
+    else {
+      const tried = [];
+      for (let Wv = total - lo; Wv >= 320; Wv -= 2) {
+        const rs = mainRects(n - 1, Wv, H, 1);
+        if (rs.length < n) continue;
+        const below = rs.slice(1).filter(r => r.y >= rs[0].y + rs[0].h - 1);   // 大きい枠の下に並んだ小さい枠が、横幅を使い切っているか
+        const span = below.length ? (Math.max(...below.map(r => r.x + r.w)) - Math.min(...below.map(r => r.x))) / Wv : 1;
+        tried.push({ Wv, c: rs.reduce((a, r) => a + r.w * r.h, 0) / (Wv * H), span });
+      }
+      const top = Math.max(0, ...tried.map(x => x.c)), good0 = tried.filter(x => x.span >= 0.98 && x.c >= Math.min(0.95, top - 0.01)), good = good0.length ? good0 : tried.filter(x => x.c >= top - 0.01);   // 小さい枠が横幅を使い切り、黒い余白が 5% 以内
+      const pv = pref ? tried.find(x => Math.abs(x.Wv - (total - pref)) <= 1) : null;
+      if (pv && pv.c >= Math.min(0.95, top - 0.01)) w = pref;   // 自分で決めた幅で黒い余白が 5% 以内なら、そのまま（大画面の見た目を変えない）
+      else w = good.length ? total - good[0].Wv : Math.round(total / 2);   // その中で、動画の場所が広い（1番が大きい）方を選ぶ
+    }
+    w = Math.round(Math.min(hi, Math.max(lo, w)));
+    if (sideCache.size > 300) sideCache.clear();
+    sideCache.set(ck, w);
+    return w;
+  }
+  function closeMore(refocus) {
+    const pop = $('#morePop'), was = pop.classList.contains('on');
+    pop.classList.remove('on'); $('#moreBtn').classList.remove('on');
+    if (was && refocus && getComputedStyle($('#moreBtn')).display !== 'none') $('#moreBtn').focus({ preventScroll: true });   // キーボードで使っていたら ⋯ に戻す
+  }
+  // 帯を1列に収める：入りきらなければ、字を省く→よく使わないものから「⋯」の中へ
+  const MOVE_ORDER = ['#helpBtn', '#fsBtn', '#presetDel', '#presetSave', '#presetSel', '#clearAll', '#count', '#openX', '#hiddenBtn', '#playAll', '#soundAll', '#bar .seg', '#hideBar'];
+  let barKids = null, moveEls = null;
+  function fitBar() {
+    const bar = $('#bar'), pop = $('#morePop'), b = document.body;
+    if (!barKids) { barKids = [...bar.children]; moveEls = MOVE_ORDER.map(q => document.querySelector(q)).filter(Boolean); }
+    if (state.barHidden) { pop.classList.remove('on'); return; }
+    const focused = document.activeElement;
+    barKids.forEach(el => bar.appendChild(el));   // いったん全部、元の順で帯に戻す
+    b.classList.remove('barCompact', 'barMoved');
+    bar.style.setProperty('--urlMin', '260px');
+    const over = () => bar.scrollWidth > bar.clientWidth + 1;
+    const moved = [];
+    if (over()) {
+      b.classList.add('barCompact');
+      bar.style.setProperty('--urlMin', innerWidth < 760 ? '110px' : '190px');
+      if (over()) {
+        b.classList.add('barMoved');
+        for (const el of moveEls) { if (!over()) break; moved.push(el); el.remove(); }
+      }
+    }
+    moved.sort((a, c) => barKids.indexOf(a) - barKids.indexOf(c)).forEach(el => pop.appendChild(el));
+    if (!moved.length) { pop.classList.remove('on'); $('#moreBtn').classList.remove('on'); }
+    if (focused && focused !== document.activeElement && document.contains(focused)) {
+      if (pop.contains(focused) && !pop.classList.contains('on')) $('#moreBtn').focus({ preventScroll: true });   // 閉じた ⋯ の中へ移ったら ⋯ に
+      else focused.focus({ preventScroll: true });
+    }
   }
   // 枠の位置と大きさ、枠の中の印（番号・音・ボタン）を決める
   function layoutTiles() {
@@ -1416,7 +1502,8 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
     $('#layFocus').classList.toggle('on', focus);
     $('#layFocus').disabled = n < 3;
     $('#layFocus').title = n < 3 ? '3画面以上のときに使えます' : '1番の位置の画面を大きく（E キー）';
-    $('#soundAll').textContent = anySounding() ? '🔇 全部ミュート' : '🔊 全部鳴らす';
+    $('#soundAll').innerHTML = anySounding() ? '🔇<span class="lb"> 全部ミュート</span>' : '🔊<span class="lb"> 全部鳴らす</span>';
+    $('#soundAll').title = (anySounding() ? '全部ミュート' : '全部鳴らす') + '（0 キー）';
     $('#soundAll').disabled = !state.tiles.length;
     updatePlayBtn();
     $('#clearAll').disabled = !state.tiles.length;
@@ -1424,7 +1511,8 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
   // 隠している画面の一覧（押すと戻る）
   function renderHiddenList() {
     const hid = state.tiles.filter(t => t.hidden);
-    $('#hiddenBtn').textContent = `👁 隠し中 ${hid.length}`;
+    $('#hiddenBtn').innerHTML = `👁<span class="lb"> 隠し中</span> ${hid.length}`;
+    $('#hiddenBtn').title = `隠している画面 ${hid.length}`;
     $('#hiddenBtn').classList.toggle('has', hid.length > 0);
     const rows = $('#hiddenRows'); rows.innerHTML = '';
     if (!hid.length) rows.innerHTML = '<div style="color:#9ba2ab;padding:6px">隠している画面はありません。各画面の「👁 隠す」で隠せます。</div>';
@@ -1488,9 +1576,24 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
   $('#clearAll').onclick = clearAll;
   $('#hiddenBtn').onclick = (e) => {
     const pop = $('#hiddenPop'), r = e.currentTarget.getBoundingClientRect();
-    pop.style.left = Math.min(r.left, innerWidth - 350) + 'px';
+    pop.style.left = Math.max(8, Math.min(r.left, innerWidth - 350)) + 'px';
+    pop.style.top = Math.round(r.bottom + 4) + 'px';
+    pop.style.maxHeight = Math.max(160, innerHeight - r.bottom - 14) + 'px';
     pop.classList.toggle('on');
   };
+  $('#moreBtn').onclick = (e) => {
+    const pop = $('#morePop'), r = e.currentTarget.getBoundingClientRect();
+    pop.style.top = ($('#bar').offsetHeight + 4) + 'px';
+    pop.style.right = Math.max(8, innerWidth - r.right) + 'px';
+    e.currentTarget.classList.toggle('on', pop.classList.toggle('on'));
+  };
+  // 中のボタンを押したら閉じる（選ぶ欄は閉じない）。ボタンの処理で字が作り直される前に調べる（Codex 指摘）
+  $('#morePop').addEventListener('click', (e) => { if (e.target.closest('button')) { const kb = e.detail === 0; setTimeout(() => closeMore(kb), 0); } }, true);   // 閉じるのはボタンの処理のあと（隠し中の一覧がボタンの位置を使うため）
+  document.addEventListener('pointerdown', (e) => {
+    if (!e.target.closest('#morePop') && !e.target.closest('#moreBtn')) closeMore(false);
+  });
+  // サイドバーの端をダブルクリック＝「動画にぴったり」に戻す
+  $('#t-side .sideGrip').addEventListener('dblclick', () => { state.side.manual = false; state.side.dragW = 0; state.side.width = 0; render(); save(); });
   $('#showAllBtn').onclick = () => state.tiles.filter(t => t.hidden).forEach(t => setHidden(t.key, false));
   document.addEventListener('pointerdown', (e) => {
     if (!e.target.closest('#hiddenPop') && !e.target.closest('#hiddenBtn')) $('#hiddenPop').classList.remove('on');
@@ -1499,7 +1602,7 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
   $('#hideBar').onclick = toggleBar;
   $('#showBar').onclick = toggleBar;
   $('#fsBtn').onclick = () => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
-  window.addEventListener('resize', render);
+  window.addEventListener('resize', () => { closeMore(false); $('#hiddenPop').classList.remove('on'); render(); });
 
   document.addEventListener('keydown', (e) => {
     if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName) || e.ctrlKey || e.altKey || e.metaKey) return;
@@ -1512,7 +1615,7 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
     else if (e.key === 'h' || e.key === 'H') toggleBar();
     else if (e.key === 't' || e.key === 'T') addBracket();
     else if (arrow && state.side.open && state.side.mode === 'sg') { e.preventDefault(); sgStepPool(state.side, e.key === 'ArrowRight' ? 1 : -1); }
-    else if (e.key === 'Escape') $('#hiddenPop').classList.remove('on');
+    else if (e.key === 'Escape') { $('#hiddenPop').classList.remove('on'); closeMore(true); }
   });
   // 動画を押すとキーが YouTube・Twitch 側に取られるので、すぐこちらに戻す（数字キーで切りかえられるように）
   window.addEventListener('blur', () => setTimeout(() => {
