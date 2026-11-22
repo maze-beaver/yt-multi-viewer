@@ -91,27 +91,27 @@
   .ctl { position: absolute; top: 0; left: 0; right: 0; display: flex; align-items: flex-start; gap: 5px; padding: 4px; z-index: 5; pointer-events: none; }
   .ctl > * { pointer-events: auto; }
   .tile:hover .ctl, .tile.sel .ctl { background: linear-gradient(rgba(0,0,0,.88), rgba(0,0,0,.6) 75%, transparent); }
-  .handle { flex: none; display: flex; align-items: center; gap: 4px; background: rgba(0,0,0,.7); border: 1px solid rgba(255,255,255,.18);
+  .handle { flex: none; box-sizing: border-box; height: 24px; display: flex; align-items: center; gap: 4px; background: rgba(0,0,0,.7); border: 1px solid rgba(255,255,255,.18);
     border-radius: 5px; padding: 2px 6px; font-weight: 700; font-size: 12px; line-height: 18px; cursor: grab; user-select: none; touch-action: none; }
   .handle .grip { font-size: 13px; }
   .handle .mv { display: none; font-size: 11px; font-weight: 600; margin-left: 2px; }
   .tile:hover .handle { border-color: #fff; }
   .tile:hover:not(.small) .handle .mv { display: inline; }
   .tile.sounding .handle { background: var(--accent); color: #111; border-color: var(--accent); }
-  .rest { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; visibility: hidden; }
+  .rest { display: flex; align-items: center; gap: 5px; flex: 1; min-width: 0; visibility: hidden; }
   .tile:hover .rest, .tile.sel .rest { visibility: visible; }
   .tile.small .rest { flex-wrap: wrap; }
-  .rest button { background: rgba(28,31,35,.95); border-color: rgba(255,255,255,.22); padding: 5px 10px; font-size: 13px; font-weight: 600; }
+  .rest button { background: rgba(28,31,35,.95); border-color: rgba(255,255,255,.22); box-sizing: border-box; height: 24px; padding: 2px 7px; font-size: 12px; line-height: 18px; font-weight: 600; border-radius: 5px; display: inline-flex; align-items: center; }   /* 番号ボタンと同じ高さ・字の大きさにそろえる（2026-11-22 本人「サイズ統一して」） */
   .rest button:hover { background: #3a3f46; }
   .rest button.on { background: var(--accent); color: #111; border-color: var(--accent); }
   .rest button.x:hover { background: var(--danger); border-color: var(--danger); }
-  .rest .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #ddd; }
+  .rest .name { font-size: 12px; line-height: 24px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #ddd; }
   .rest input[type=range] { width: 70px; accent-color: #fff; }
   .tile.tiny .rest .lbl { display: none; }   /* とても小さい画面ではボタンの字を省いてアイコンだけ（字は押す前に出る説明で見られる） */
-  .tile.small .rest button { padding: 4px 7px; font-size: 12px; }
+  .tile.small .rest button { padding: 2px 6px; }
   .tile.small .rest .name, .tile.tiny .rest input[type=range] { display: none; }
   .tile.small .rest input[type=range] { width: 56px; }
-  @media (pointer: coarse) { .rest button, .tile.small .rest button { min-height: 38px; padding: 6px 10px; } .handle { min-height: 32px; padding: 2px 8px; } }
+  @media (pointer: coarse) { .rest button, .tile.small .rest button, .handle { height: 32px; padding: 2px 9px; } .rest .name { line-height: 32px; } }   /* 指で押す端末も全部同じ高さ */
   .err { position: absolute; inset: 0; display: none; flex-direction: column; gap: 10px; align-items: center; justify-content: center;
     background: #111; color: var(--sub); z-index: 2; text-align: center; padding: 20px; }
   .err a { color: #fff; }
@@ -288,7 +288,7 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
     return o;
   };
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify({
-    tiles: state.tiles.map(t => ({ key: t.key, vol: t.vol, ...pick(t) })),
+    tiles: state.tiles.map(t => ({ key: t.key, vol: t.vol, muted: !!t.muted, ...pick(t) })),   // 音のオン/オフも覚える（開き直したとき元のとおり鳴らす）
     layout: state.layout, barHidden: state.barHidden,
     side: { open: state.side.open, width: state.side.width, mode: state.side.mode, xq: state.side.xq, ...pick(state.side) } })); } catch {} };
   const newKey = (i = 0) => 'k' + Date.now().toString(36) + i + Math.random().toString(36).slice(2, 6);
@@ -296,7 +296,7 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
     const k = kindOf(t);
     const o = { key: typeof t.key === 'string' && /^[\w]{1,40}$/.test(t.key) ? t.key : newKey(i), kind: k,
       vol: Math.min(100, Math.max(0, parseInt(t.vol ?? 100, 10) || 0)),
-      hidden: !!t.hidden, title: typeof t.title === 'string' ? t.title.slice(0, 300) : '', muted: true };   // 開き直したときは全部ミュート
+      hidden: !!t.hidden, title: typeof t.title === 'string' ? t.title.slice(0, 300) : '', muted: true };   // ここではミュート。開き直したときの音は下の「音を戻す」で決める
     if (k === 'yt') Object.assign(o, { vid: t.vid, start: Math.max(0, parseInt(t.start, 10) || 0) });
     if (k === 'tw') Object.assign(o, okCh(t.ch) ? { ch: t.ch } : { vod: t.vod, time: okTime(t.time) ? t.time : '' });
     if (k === 'sg') Object.assign(o, { slug: okSlug(t.slug) ? t.slug : '', sgPhase: okId(t.sgPhase) ? t.sgPhase : '', sgGroup: okId(t.sgGroup) ? t.sgGroup : '',
@@ -316,6 +316,13 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
       // mode：'sg'＝トーナメント表／'x'＝X（本物の窓を重ねて開く）・xq：X で検索する言葉（空ならホーム）
       mode: saved.side?.mode === 'x' ? 'x' : 'sg', xq: typeof saved.side?.xq === 'string' ? saved.side.xq.slice(0, 200) : '' },
   };
+  // 音を戻す（2026-11-22 本人「画面を更新したときに、もともと音が鳴ってた画面だけ音が鳴るように。最初に開くなら1番だけ鳴る」）
+  (() => {
+    const raw = Array.isArray(saved.tiles) ? saved.tiles : [];
+    if (raw.some(x => x && typeof x.muted === 'boolean')) {
+      state.tiles.forEach(t => { const r = raw.find(x => x && x.key === t.key); if (r && r.muted === false && !t.hidden) t.muted = false; });
+    } else soundFirstOnly();
+  })();
   const savedPresets = load(PKEY, []);
   let presets = (Array.isArray(savedPresets) ? savedPresets : []).filter(p => p && typeof p.name === 'string' && Array.isArray(p.tiles));
   const players = {};   // key → { mute, unMute, setVolume(0-100), play, pause, playing, destroy, p }
@@ -382,6 +389,7 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
     if (!tokens.length) return;
     let added = 0, bad = 0, full = false;
     let sideUrl = null;
+    const wasEmpty = !state.tiles.some(isMedia);
     tokens.forEach((tk, i) => {
       const p = parse(tk);
       if (!p) { bad++; return; }
@@ -390,6 +398,7 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
       addTile(p, i); added++;
     });
     if (sideUrl) { state.side.mode = 'sg'; setSide(true, true); sgSetUrl(state.side, sideUrl); }   // 古い大会は読まずに、新しい大会だけ読む
+    if (wasEmpty && added) { soundFirstOnly(); state.tiles.forEach(t => { if (!t.muted) setMuted(t.key, false, true); }); }   // 何もないところに足したら1番だけ鳴らす
     $('#url').value = '';
     const msg = [];
     if (added) msg.push(`${added} 枠 追加しました`);
@@ -509,7 +518,8 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
       events: {
         onReady: (e) => {
           const p = e.target;
-          try { p.setVolume(t.vol); t.muted ? p.mute() : p.unMute(); (t.hidden || t.stopped) ? p.pauseVideo() : p.playVideo(); } catch {}   // 準備中に隠した・全部停止したものも止める
+          try { p.setVolume(t.vol); t.muted ? p.mute() : p.unMute(); (t.hidden || t.stopped) ? p.pauseVideo() : p.playVideo(); } catch {}
+          if (!t.muted) checkSound(t);   // 準備中に隠した・全部停止したものも止める
           updateTitle(t);
         },
         onStateChange: () => { updateTitle(t); updatePlayBtn(); },
@@ -525,7 +535,7 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
       },
     });
     players[t.key] = {
-      p, mute: () => p.mute(), unMute: () => p.unMute(), setVolume: (v) => p.setVolume(v),
+      p, mute: () => p.mute(), unMute: () => p.unMute(), setVolume: (v) => p.setVolume(v), isMuted: () => p.isMuted(),
       play: () => p.playVideo(), pause: () => p.pauseVideo(),
       playing: () => { const s = p.getPlayerState?.(); return s === 1 || s === 3; },
       destroy: () => p.destroy(),
@@ -556,7 +566,7 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
     const mine = () => players[t.key] === me;   // 作り直した・外したあとの古いプレイヤーの知らせは無視する
     // Twitch の生配信は、一度止めると外からの「再生」で戻らないことがある（2026-11-22 確かめ）→ 戻らなければ枠を作り直して再生する
     const me = players[t.key] = {
-      p, mute: () => safe(() => p.setMuted(true)), unMute: () => safe(() => p.setMuted(false)),
+      p, mute: () => safe(() => p.setMuted(true)), unMute: () => safe(() => p.setMuted(false)), isMuted: () => { try { return ready && p.getMuted(); } catch { return false; } },
       setVolume: (v) => safe(() => p.setVolume(v / 100)), pause: () => { clearTimeout(me.retry); safe(() => p.pause()); },
       play: () => {
         if (!ready) return;
@@ -573,6 +583,7 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
       me.setVolume(t.vol); t.muted ? me.mute() : me.unMute();
       // 準備中に隠した・全部停止したものは止める／準備中に「表示する」を押したものは再生する（Codex 指摘）
       if (t.hidden || t.stopped) me.pause(); else safe(() => { if (p.isPaused()) p.play(); });
+      if (!t.muted) checkSound(t);
       updatePlayBtn();
     });
     [Twitch.Player.PLAY, Twitch.Player.PLAYING, Twitch.Player.PAUSE, Twitch.Player.ENDED].forEach(ev => p.addEventListener(ev, () => { if (mine()) updatePlayBtn(); }));
@@ -594,6 +605,33 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
     try { const p = players[key]; if (p) { if (muted) p.mute(); else { if (!t.vol) t.vol = 100; p.unMute(); p.setVolume(t.vol); } } } catch {}
     if (!quiet) { render(); save(); }
   }
+  // 1番（いちばん前の、隠していない枠）だけ鳴らす
+  function soundFirstOnly() {
+    const first = state.tiles.find(t => isMedia(t) && !t.hidden);
+    state.tiles.forEach(t => { if (isMedia(t)) t.muted = t !== first; });
+  }
+  // ブラウザは、ページを開いてから一度も押していないと音を出させない。出せなかった枠は、音を消して再生を続け、
+  // ページのどこかを押した（動画の中を押したときも）ところで音を戻す
+  let soundHinted = false;
+  function checkSound(t) {
+    if (navigator.userActivation?.hasBeenActive) return;
+    setTimeout(() => {
+      const pl = players[t.key]; if (!pl || t.muted || t.hidden || t.stopped) return;
+      let blocked = false;
+      try { blocked = !pl.playing() || pl.isMuted(); } catch {}
+      if (!blocked) return;
+      t.needGesture = true;
+      try { pl.mute(); pl.play(); } catch {}
+      if (!soundHinted) { soundHinted = true; toast('画面のどこかを1回押すと、前に鳴っていた画面の音が出ます（ブラウザの決まりで、押すまでは音が出せません）', 7000); }
+    }, 1500);
+  }
+  function wakeSound() {
+    const ts = state.tiles.filter(t => t.needGesture); if (!ts.length) return;
+    ts.forEach(t => { t.needGesture = false; if (!t.muted && !t.hidden) setMuted(t.key, false, true); });
+    render();
+  }
+  ['pointerdown', 'keydown'].forEach(ev => addEventListener(ev, wakeSound, true));
+  addEventListener('blur', () => setTimeout(() => { if (document.activeElement?.tagName === 'IFRAME') wakeSound(); }, 0));   // 動画の中を押したとき
   function solo(key) { state.tiles.filter(isMedia).forEach(t => setMuted(t.key, t.key !== key || t.hidden, true)); render(); save(); }
   const anySounding = () => state.tiles.some(t => isMedia(t) && !t.muted && !t.hidden);
   function toggleAllSound() {
@@ -1283,12 +1321,13 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
   };
   $('#presetSel').onchange = (e) => {
     const p = presets[e.target.value]; e.target.value = ''; if (!p) return;
-    removeAllTiles();   // 今の枠を外してから、保存した枠を並べる（隠し中・名前は保存のまま・音は全部ミュートで始まる）
+    removeAllTiles();   // 今の枠を外してから、保存した枠を並べる（隠し中・名前は保存のまま・音は1番だけ）
     p.tiles.filter(okTile).slice(0, MAX).forEach((x, i) => {
       const t = cleanTile({ ...x, key: newKey(i), vol: 100 }, i);
       state.tiles.push(t); makeTile(t);
     });
     if (p.layout) state.layout = p.layout === 'equal' ? 'equal' : 'focus';
+    soundFirstOnly(); state.tiles.forEach(t => { if (!t.muted) setMuted(t.key, false, true); });   // 開いたら1番だけ鳴らす
     render(); save(); toast(`「${p.name}」を開きました`);
   };
   $('#presetDel').onclick = () => {
