@@ -158,6 +158,8 @@
   .sgHalves { display: flex; flex-direction: column; gap: 10px; }
   .sgHalf { display: flex; gap: 14px; }
   .sgHalf + .sgHalf { border-top: 1px dashed #3a3f46; padding-top: 8px; }
+  /* カーソルの説明を、クリック・タップでも出す箱（2026-11-22 本人「クリックしても表示」「スマホ版についてはタップしたら表示」） */
+  .sgTip { position: fixed; z-index: 50; max-width: 280px; background: #262a30; border: 1px solid #555c65; border-radius: 6px; padding: 6px 9px; font-size: 12px; line-height: 1.5; color: #e6e9ec; white-space: pre-line; overflow-wrap: anywhere; max-height: calc(100vh - 8px); overflow: hidden; pointer-events: none; box-shadow: 0 6px 18px rgba(0,0,0,.5); }
   .sgLines { position: absolute; left: 0; top: 0; pointer-events: none; overflow: visible; }
   .sgLines path { fill: none; stroke: #5a616a; stroke-width: 1.5; }
   .sgCol { position: relative; z-index: 1; }
@@ -213,7 +215,6 @@
   <span id="testBadge" title="開発中のテスト版です。いつものツールとは保存も別です">テスト版</span>
   <textarea id="url" rows="1" placeholder="YouTube・Twitch・start.gg の URL を貼って Enter" autocomplete="off" spellcheck="false"></textarea>
   <button id="addBtn" class="primary">追加</button>
-  <button id="addSg" title="start.gg のトーナメント表を右に出す・しまう（T キー）">🏆<span class="lbl2"> トーナメント表</span></button><button id="openX" title="X を、いつもの Chrome の新しいタブで開く（ログインはいつものまま）">X</button>
   <span id="count">0/8</span>
   <div class="sep"></div>
   <div class="seg" title="E キーで切りかえ">
@@ -228,6 +229,8 @@
   <button id="presetSave" class="wide">保存</button>
   <button id="presetDel" class="wide">消す</button>
   <div class="sep wide"></div>
+  <!-- 右に開くものは右に（2026-11-22 本人「トーナメン表と X のボタンについては…ハテナの左がいい」） -->
+  <button id="addSg" title="start.gg のトーナメント表を右に出す・しまう（T キー）">🏆<span class="lbl2"> トーナメント表</span></button><button id="openX" title="X を、いつもの Chrome の新しいタブで開く（ログインはいつものまま）">X</button>
   <button id="helpBtn" title="キー操作">？</button>
   <button id="fsBtn">全画面</button>
   <button id="hideBar" title="帯を隠す（H キー）">▲<span class="lbl2"> 帯を隠す</span></button>
@@ -426,7 +429,7 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
   // トーナメント表のサイドバーを出す・しまう（しまっている間は読みに行かない）
   function setSide(open, noLoad) {
     state.side.open = open;
-    if (!open) { const s = sgCancel(state.side); s.tried = 0; }   // 閉じたら読みかけをやめる（開き直したらすぐ読めるように、待ち時間も戻す）
+    if (!open) { sgTip(null); const s = sgCancel(state.side); s.tried = 0; }   // 閉じたら説明の箱も消す（Codex 指摘）。閉じたら読みかけをやめる（開き直したらすぐ読めるように、待ち時間も戻す）
     render(); save();
     if (open && !noLoad && state.side.mode === 'sg') { sgDraw(state.side); sgRefreshIfOld(state.side); }
   }
@@ -845,6 +848,18 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
     // ctrl＋ホイールで拡大・縮小／マウスでつかんで動かす（入力欄やボタンの上は除く）
     let lineRaf = 0;   // サイドバーの幅・高さが変わったら線を引き直す（試合の位置が動くため）
     new ResizeObserver(() => { cancelAnimationFrame(lineRaf); lineRaf = requestAnimationFrame(() => { const el = tileEl(t.key); sgFit(el, t); sgLines(el); }); }).observe(body);   // 1枚の表は縮め直してから線を引く
+    // カーソルを当てると出る説明（title）を、クリック・タップでも出す。つかんで動かしたあとは出さない
+    let downAt = null, dragged = false;   // 押している間に一度でも6pxより動いたら「動かした」（戻してきても出さない・Codex 指摘）
+    body.addEventListener('pointerdown', (e) => { downAt = { x: e.clientX, y: e.clientY }; dragged = false; }, true);
+    body.addEventListener('pointermove', (e) => { if (downAt && e.buttons && Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) > 6) dragged = true; }, true);
+    body.addEventListener('click', (e) => {
+      if (dragged || (downAt && Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) > 6)) return;
+      const hit = document.elementFromPoint(e.clientX, e.clientY) || e.target;   // つかむ機能が指を body に預けるので、押した場所から探す
+      if (hit.closest('button, input, select, a, textarea')) return;
+      const el = hit.closest('.sgCanvas [title]');
+      sgTip(el && el.title ? el : null);
+    });
+    body.addEventListener('scroll', () => sgTip(null), { passive: true });
     body.addEventListener('wheel', (e) => { if (!e.ctrlKey || !sgOf(t.key).sets) return; e.preventDefault(); sgZoom(t, e.deltaY < 0 ? 0.1 : -0.1); }, { passive: false });
     body.addEventListener('pointerdown', (e) => {
       if (e.pointerType !== 'mouse' || e.button !== 0 || !body.classList.contains('canPan') || e.target.closest('button, input, select, a, textarea')) return;
@@ -860,6 +875,25 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
     sgDraw(t);
     if (t.open && t.mode === 'sg') sgRefreshIfOld(t);   // X を出している間は読みに行かない
   }
+  // 説明の箱：押したところのすぐ下（入りきらなければ上）に出す。同じところをもう一度押したら消す
+  let sgTipEl = null, sgTipFor = null;
+  function sgTip(el) {
+    const same = el && el === sgTipFor;
+    sgTipEl?.remove(); sgTipEl = null; sgTipFor = null;
+    if (!el || same) return;
+    const tip = document.createElement('div');
+    tip.className = 'sgTip'; tip.textContent = el.title;
+    document.body.appendChild(tip);
+    const r = el.getBoundingClientRect(), tw = tip.offsetWidth, th = tip.offsetHeight;
+    const left = Math.max(4, Math.min(r.left, innerWidth - tw - 4));
+    const top = r.bottom + 4 + th <= innerHeight - 4 ? r.bottom + 4 : Math.max(4, r.top - 4 - th);
+    tip.style.left = left + 'px'; tip.style.top = top + 'px';
+    sgTipEl = tip; sgTipFor = el;
+  }
+  document.addEventListener('pointerdown', (e) => { if (sgTipEl && !e.target.closest('.sgBody')) sgTip(null); }, true);   // 表の外を押したら消す
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && sgTipEl) sgTip(null); });
+  addEventListener('blur', () => { if (sgTipEl) sgTip(null); });     // 動画（iframe）の中を押すとこのページから注意が離れるので、そのとき消す（Codex 指摘）
+  addEventListener('resize', () => { if (sgTipEl) sgTip(null); });   // 画面の大きさが変わったら消す（位置がずれるため）
   function sgSaveToken(t, input) {
     const v = (input.value || '').trim().replace(/^Bearer\s+/i, '');
     if (!/^[A-Za-z0-9]{20,100}$/.test(v)) { toast('鍵の形が違うようです。start.gg でコピーした文字をそのまま貼ってください', 6000); return; }
@@ -1199,6 +1233,7 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
     const s = sgOf(t.key), token = getToken();
     const sl = body.scrollLeft, st = body.scrollTop;
     const focus = sgFocusState(el);
+    sgTip(null);   // 表を描き直したら説明の箱は消す（指していた箱がなくなるため）
     body.classList.remove('canPan');
     foot.innerHTML = sgSourceHtml(t);   // 出典（start.gg の API 規約）は表の下にいつも出す
     const view = sgView(t, s, token);
@@ -1419,6 +1454,9 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
     return mainRects(n - 1, W, H, ratio);
   }
   const isFocus = (n) => state.layout === 'focus' && n >= 3;   // 2枚以下は常に同じ大きさ
+  // サイドバーを出していて「1つ大きく」のとき：左の場所の上に1番を大きく、その下に残り（2画面から）。
+  // 「全部同じ」のときはサイドバーがあっても同じ大きさで並べる（2026-11-22 本人「全部同じにしてるときはサイドバーがあっても全部同じにしてよ」）
+  const sideFocus = (n) => state.side.open && !isNarrowWin() && n >= 2 && state.layout === 'focus';
 
   // ---------- 描く ----------
   function thumbHtml(t) {
@@ -1432,7 +1470,7 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
   function render() {
     document.body.classList.toggle('barHidden', state.barHidden);
     const nv = visible().length;
-    renderBarButtons(nv, (state.side.open && !isNarrowWin() && nv >= 2) || isFocus(nv));
+    renderBarButtons(nv, sideFocus(nv) || isFocus(nv));
     renderHiddenList();
     fitBar();
     const barH = state.barHidden ? 0 : $('#bar').offsetHeight;
@@ -1525,8 +1563,8 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
   function layoutTiles() {
     const W = stage.clientWidth, H = stage.clientHeight;
     const vis = visible(), n = vis.length;
-    // サイドバーを開いているとき：左の場所の上に1番を大きく、その下に残りをはめこむ（2026-11-22 本人）
-    const sideLay = state.side.open && !isNarrowWin() && n >= 2;
+    // サイドバーを開いていて「1つ大きく」のとき：左の場所の上に1番を大きく、その下に残りをはめこむ（2026-11-22 本人）。「全部同じ」なら同じ大きさ
+    const sideLay = sideFocus(n);
     const focus = sideLay || isFocus(n);
     const rects = n === 1 ? [{ x: 0, y: 0, w: W, h: H }] : !n ? [] : sideLay ? mainRects(n - 1, W, H, 1) : focus ? focusRects(n, W, H) : gridRects(n, W, H);
     state.tiles.forEach(t => {
@@ -1559,8 +1597,9 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
     $('#addSg').classList.toggle('on', state.side.open);
     $('#layEqual').classList.toggle('on', !focus);
     $('#layFocus').classList.toggle('on', focus);
-    $('#layFocus').disabled = n < 3;
-    $('#layFocus').title = n < 3 ? '3画面以上のときに使えます' : '1番の位置の画面を大きく（E キー）';
+    const minF = state.side.open && !isNarrowWin() ? 2 : 3;   // サイドバーを出しているときは2画面から「1つ大きく」を選べる
+    $('#layFocus').disabled = n < minF;
+    $('#layFocus').title = n < minF ? `${minF}画面以上のときに使えます` : '1番の位置の画面を大きく（E キー）';
     $('#soundAll').innerHTML = anySounding() ? '🔇<span class="lb"> 全部ミュート</span>' : '🔊<span class="lb"> 全部鳴らす</span>';
     $('#soundAll').title = (anySounding() ? '全部ミュート' : '全部鳴らす') + '（0 キー）';
     $('#soundAll').disabled = !state.tiles.length;
