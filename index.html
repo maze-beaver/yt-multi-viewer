@@ -124,6 +124,18 @@
   body.barHidden #t-side { top: 0; }
   .sideHead { display: flex; align-items: center; gap: 8px; padding: 6px 8px 6px 14px; border-bottom: 1px solid var(--line); background: var(--bar); }
   .sideHead .st { flex: 1; min-width: 0; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* 2026-11-22 本人「サイドバーをトーナメントと X で切りかえ」「横に窓で開くで」→ X は埋め込めないので、本物の窓をこの場所に重ねて開く */
+  .sideMode { display: flex; flex: none; }
+  .sideMode button { padding: 3px 10px; font-size: 12px; }
+  .sideMode button.on { background: #fff; color: #111; border-color: #fff; }
+  #t-side.modeX .sg { display: none; }
+  .xPanel { display: none; flex: 1; overflow: auto; padding: 16px; line-height: 1.85; color: #ddd; font-size: 13px; }
+  #t-side.modeX .xPanel { display: block; }
+  .xPanel h3 { margin: 0 0 6px; font-size: 15px; color: #fff; }
+  .xPanel .row { display: flex; gap: 6px; margin: 10px 0; flex-wrap: wrap; }
+  .xPanel input { flex: 1 1 220px; background: #0f1113; border: 1px solid var(--line); border-radius: 7px; padding: 6px 9px; }
+  .xPanel .xOpen { background: #fff; color: #111; border-color: #fff; font-weight: 700; padding: 6px 14px; }
+  .xPanel .note { color: var(--sub); font-size: 12px; }
   .sideGrip { position: absolute; left: -4px; top: 0; bottom: 0; width: 8px; cursor: ew-resize; touch-action: none; z-index: 2; }
   .sideGrip:hover, body.sizing .sideGrip { background: rgba(255,255,255,.25); }
   body.sizing, body.sizing * { cursor: ew-resize !important; user-select: none; }
@@ -204,8 +216,14 @@
 <div id="hiddenPop"><h4>隠している画面（押すと戻ります）</h4><div id="hiddenRows"></div><button class="all" id="showAllBtn">全部表示する</button></div>
 <div id="stage"><div id="empty"></div></div>
 <div id="t-side"><div class="sideGrip" title="つかんで左右に動かすと幅が変わります"></div>
-  <div class="sideHead"><span class="st">🏆 トーナメント表</span><button id="sideClose" title="閉じる（T キー）">✕ 閉じる</button></div>
-  <div class="sg"><div class="sgBar"></div><div class="sgBody"></div><div class="sgFoot"></div></div></div>
+  <div class="sideHead"><div class="seg sideMode"><button data-mode="sg" title="start.gg のトーナメント表">🏆 トーナメント</button><button data-mode="x" title="X をいつもの Chrome の窓で、この場所に重ねて開く">X</button></div><span class="st">トーナメント表</span><button id="sideClose" title="閉じる（T キー）">✕ 閉じる</button></div>
+  <div class="sg"><div class="sgBar"></div><div class="sgBody"></div><div class="sgFoot"></div></div>
+  <div class="xPanel">
+    <h3>X（旧 Twitter）</h3>
+    <p>X は、ほかのページの中に入れられない作りです。そのため、<b>いつもの Chrome の窓で、この場所に重ねて開きます</b>。ログインはいつもの X のままなので、ふだんどおり見られます。</p>
+    <div class="row"><input class="xq" type="search" maxlength="200" placeholder="検索したい言葉（空ならホーム）　例：#大会名" autocomplete="off"><button class="xOpen">X を開く</button></div>
+    <p class="note">ツールの窓を動かしたり大きさを変えたりしたときは、X の窓を閉じてから、もう一度「X を開く」を押すと場所が合います。幅の狭い画面（スマホ）では、X のアプリか別のタブで開きます。</p>
+  </div></div>
 <div id="toast"></div>
 <div id="fileWarn" style="display:none;position:fixed;inset:0;z-index:100;background:rgba(11,12,14,.97);color:#f1f2f4;align-items:center;justify-content:center;text-align:center;line-height:2;font-size:16px">
   <div>このファイルを直接開くと、YouTube の決まりで動画が再生できません（エラー 153）。<br>
@@ -272,7 +290,7 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify({
     tiles: state.tiles.map(t => ({ key: t.key, vol: t.vol, ...pick(t) })),
     layout: state.layout, barHidden: state.barHidden,
-    side: { open: state.side.open, width: state.side.width, ...pick(state.side) } })); } catch {} };
+    side: { open: state.side.open, width: state.side.width, mode: state.side.mode, xq: state.side.xq, ...pick(state.side) } })); } catch {} };
   const newKey = (i = 0) => 'k' + Date.now().toString(36) + i + Math.random().toString(36).slice(2, 6);
   const cleanTile = (t, i) => {
     const k = kindOf(t);
@@ -294,7 +312,9 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
     // トーナメント表のサイドバー（key は 'side' 固定・中身の形は start.gg の枠と同じ）
     side: { ...cleanTile({ ...(saved.side && typeof saved.side === 'object' ? saved.side : {}), kind: 'sg', key: 'side' }, 0), key: 'side',
       // width：0＝画面の半分（はじめ・2026-11-22 本人「最初開いたタイミングでは画面の半分」）／左の端をつかんで動かすとその幅を覚える
-      open: !!saved.side?.open, width: Math.min(3000, Math.max(0, parseInt(saved.side?.width, 10) || 0)) },
+      open: !!saved.side?.open, width: Math.min(3000, Math.max(0, parseInt(saved.side?.width, 10) || 0)),
+      // mode：'sg'＝トーナメント表／'x'＝X（本物の窓を重ねて開く）・xq：X で検索する言葉（空ならホーム）
+      mode: saved.side?.mode === 'x' ? 'x' : 'sg', xq: typeof saved.side?.xq === 'string' ? saved.side.xq.slice(0, 200) : '' },
   };
   const savedPresets = load(PKEY, []);
   let presets = (Array.isArray(savedPresets) ? savedPresets : []).filter(p => p && typeof p.name === 'string' && Array.isArray(p.tiles));
@@ -369,7 +389,7 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
       if (state.tiles.length >= MAX) { full = true; return; }
       addTile(p, i); added++;
     });
-    if (sideUrl) { setSide(true, true); sgSetUrl(state.side, sideUrl); }   // 古い大会は読まずに、新しい大会だけ読む
+    if (sideUrl) { state.side.mode = 'sg'; setSide(true, true); sgSetUrl(state.side, sideUrl); }   // 古い大会は読まずに、新しい大会だけ読む
     $('#url').value = '';
     const msg = [];
     if (added) msg.push(`${added} 枠 追加しました`);
@@ -383,9 +403,31 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
     state.side.open = open;
     if (!open) { const s = sgCancel(state.side); s.tried = 0; }   // 閉じたら読みかけをやめる（開き直したらすぐ読めるように、待ち時間も戻す）
     render(); save();
-    if (open && !noLoad) { sgDraw(state.side); sgRefreshIfOld(state.side); }
+    if (open && !noLoad && state.side.mode === 'sg') { sgDraw(state.side); sgRefreshIfOld(state.side); }
   }
   const addBracket = () => setSide(!state.side.open);
+  // サイドバーの中身を切りかえる（'sg'＝トーナメント表／'x'＝X）。X の間は start.gg を読みに行かない
+  function setSideMode(mode, openNow) {
+    const sd = state.side, was = sd.mode;
+    sd.mode = mode;
+    if (mode === 'x') sgCancel(sd);
+    render(); save();
+    if (mode === 'sg' && was !== 'sg') { sgDraw(sd); sgRefreshIfOld(sd); }
+    if (mode === 'x' && openNow) openX();
+  }
+  // X をいつもの Chrome の窓で開き、サイドバーの場所に重ねる（x.com はほかのページの中に入れられない＝X-Frame-Options のため）
+  function openX() {
+    const q = (state.side.xq || '').trim();
+    const url = q ? `https://x.com/search?q=${encodeURIComponent(q)}&f=live` : 'https://x.com/home';
+    if (isNarrowWin()) { window.open(url, '_blank', 'noopener,noreferrer'); return; }   // スマホなどは X のアプリか別のタブ
+    const r = $('#t-side').getBoundingClientRect();
+    const bx = Math.max(0, (outerWidth - innerWidth) / 2);              // 窓の左右のふち
+    const top0 = screenY + Math.max(0, outerHeight - innerHeight - bx);  // ページの上の端（画面の上から）
+    const POP_BAR = 64;                                                  // 開く窓の上の帯（題名・アドレス）のぶん
+    const feat = [`left=${Math.round(screenX + bx + r.left)}`, `top=${Math.round(top0 + r.top)}`,
+      `width=${Math.round(r.width)}`, `height=${Math.max(300, Math.round(r.height - POP_BAR))}`].join(',');
+    window.open(url, '_blank', 'popup,noopener,noreferrer,' + feat);   // noopener：X の窓からこのページを触れないように
+  }
   // 幅は左の端をつかんで変える
   function startSize(e) {
     if (e.button !== 0) return;
@@ -772,7 +814,7 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
       body.addEventListener('pointermove', mv); body.addEventListener('pointerup', up); body.addEventListener('pointercancel', up);
     });
     sgDraw(t);
-    if (t.open) sgRefreshIfOld(t);
+    if (t.open && t.mode === 'sg') sgRefreshIfOld(t);   // X を出している間は読みに行かない
   }
   function sgSaveToken(t, input) {
     const v = (input.value || '').trim().replace(/^Bearer\s+/i, '');
@@ -1038,7 +1080,7 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
   // 15秒ごとに見て、前に読んでから1分たっていたら読み直す（サイドバーを開いているときだけ・この画面が裏にあるときは読まない）
   setInterval(() => {
     if (document.visibilityState !== 'visible' || !getToken()) return;
-    if (state.side.open) sgRefreshIfOld(state.side);
+    if (state.side.open && state.side.mode === 'sg') sgRefreshIfOld(state.side);
   }, 15000);
 
   // ---------- 配置の計算 ----------
@@ -1155,9 +1197,12 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
     sideEl.style.top = barH + 'px';
     sideEl.classList.toggle('narrow', sw < 420);
     stage.style.right = sd.open && !narrowWin ? sw + 'px' : '0px';
+    const isX = sd.mode === 'x';
+    sideEl.classList.toggle('modeX', isX);
+    sideEl.querySelectorAll('.sideMode button').forEach(b => b.classList.toggle('on', b.dataset.mode === sd.mode));
     const st = sideEl.querySelector('.st');
-    st.textContent = '🏆 ' + (sd.title || 'トーナメント表');
-    st.title = sd.title || '';
+    st.textContent = isX ? '' : (sd.title || 'トーナメント表');
+    st.title = isX ? '' : (sd.title || '');
   }
   // 枠の位置と大きさ、枠の中の印（番号・音・ボタン）を決める
   function layoutTiles() {
@@ -1293,7 +1338,7 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
     else if (e.key === 'e' || e.key === 'E') setLayout(state.layout === 'focus' ? 'equal' : 'focus');
     else if (e.key === 'h' || e.key === 'H') toggleBar();
     else if (e.key === 't' || e.key === 'T') addBracket();
-    else if (arrow && state.side.open) { e.preventDefault(); sgStepPool(state.side, e.key === 'ArrowRight' ? 1 : -1); }
+    else if (arrow && state.side.open && state.side.mode === 'sg') { e.preventDefault(); sgStepPool(state.side, e.key === 'ArrowRight' ? 1 : -1); }
     else if (e.key === 'Escape') $('#hiddenPop').classList.remove('on');
   });
   // 動画を押すとキーが YouTube・Twitch 側に取られるので、すぐこちらに戻す（数字キーで切りかえられるように）
@@ -1304,6 +1349,12 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
   // ---------- 始める ----------
   state.tiles.forEach(makeTile);
   $('#sideClose').onclick = () => setSide(false);
+  document.querySelectorAll('#t-side .sideMode button').forEach(b => b.onclick = () => setSideMode(b.dataset.mode, true));   // X を押したらすぐ開く
+  const xq = $('#t-side .xq');
+  xq.value = state.side.xq;
+  xq.addEventListener('input', () => { state.side.xq = xq.value.slice(0, 200); save(); });
+  xq.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) openX(); });
+  $('#t-side .xOpen').onclick = openX;
   $('#t-side .sideGrip').addEventListener('pointerdown', startSize);
   renderPresets(); render();
   sgInit(state.side, $('#t-side'));
