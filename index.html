@@ -954,13 +954,13 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
     if (gs.length < 2) return;
     const i = gs.findIndex(g => String(g.id) === t.sgGroup), j = i + d;
     if (j < 0 || j >= gs.length) return toast(d > 0 ? 'これが最後のプールです' : 'これが最初のプールです', 1500);
-    t.sgGroup = String(gs[j].id); s.sets = null; t.sgSide = 'w'; save(); sgLoadSets(t);
+    t.sgGroup = String(gs[j].id); s.sets = null; save(); sgLoadSets(t);   // 勝者側・敗者側はそのまま（本人 11/22）
     toast(`プール ${gs[j].displayIdentifier}`, 1200);
   }
   function sgChange(t, e) {
     const s = sgOf(t.key);
     if (e.target.classList.contains('ph')) { t.sgPhase = e.target.value; t.sgGroup = ''; sgPickDefault(t); s.sets = null; t.sgSide = 'w'; save(); sgLoadSets(t); }
-    else if (e.target.classList.contains('pg')) { t.sgGroup = e.target.value; s.sets = null; t.sgSide = 'w'; save(); sgLoadSets(t); }
+    else if (e.target.classList.contains('pg')) { t.sgGroup = e.target.value; s.sets = null; save(); sgLoadSets(t); }
   }
 
   // 列（ラウンド）ごとに並べる。次のラウンドの試合の「前の試合」の順に並べ直して、トーナメントの形に近づける
