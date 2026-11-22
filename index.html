@@ -136,10 +136,13 @@
   .sgBody.canPan { cursor: grab; }
   .sgBody.panning { cursor: grabbing; user-select: none; }
   /* 2026-11-22 本人「小さめに表示したときに文字がはっきり表示されない」→ 縮めても字は 10px より小さくしない（--fs を JS で決める）・字の色を明るく */
-  .sgCanvas { display: flex; gap: 22px; width: max-content; min-height: 100%; font-size: var(--fs, 12px); -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+  .sgCanvas { position: relative; display: flex; gap: 22px; width: max-content; min-height: 100%; font-size: var(--fs, 12px); -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
   .sgCol { display: flex; flex-direction: column; width: 200px; flex: none; }
   .sgColH { color: #b4bac1; font-size: 1em; font-weight: 700; text-align: center; padding: 0 0 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .sgSets { flex: 1; display: flex; flex-direction: column; justify-content: space-around; gap: 10px; }
+  .sgLines { position: absolute; left: 0; top: 0; pointer-events: none; overflow: visible; }
+  .sgLines path { fill: none; stroke: #5a616a; stroke-width: 1.5; }
+  .sgCol { position: relative; z-index: 1; }
   .sgSet { background: #1b1e23; border: 1px solid #3a3f46; border-radius: 6px; overflow: hidden; font-size: 1em; position: relative; flex: none; }
   .sgRow { display: flex; align-items: stretch; height: max(24px, 2em); }
   .sgRow + .sgRow { border-top: 1px solid #3a3f46; }
@@ -818,6 +821,8 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
     });
     const body = box.querySelector('.sgBody');
     // ctrl＋ホイールで拡大・縮小／マウスでつかんで動かす（入力欄やボタンの上は除く）
+    let lineRaf = 0;   // サイドバーの幅・高さが変わったら線を引き直す（試合の位置が動くため）
+    new ResizeObserver(() => { cancelAnimationFrame(lineRaf); lineRaf = requestAnimationFrame(() => sgLines(tileEl(t.key))); }).observe(body);
     body.addEventListener('wheel', (e) => { if (!e.ctrlKey || !sgOf(t.key).sets) return; e.preventDefault(); sgZoom(t, e.deltaY < 0 ? 0.1 : -0.1); }, { passive: false });
     body.addEventListener('pointerdown', (e) => {
       if (e.pointerType !== 'mouse' || e.button !== 0 || !body.classList.contains('canPan') || e.target.closest('button, input, select, a, textarea')) return;
@@ -1074,6 +1079,37 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
     };
     return { byId, src, loserTo, pair, rank, isReset, slotEn, noSeed: seedOf.size === 0 && !sets.some(x => (x.slots || []).some(sl => +sl?.seed?.seedNum > 0)) };
   }
+  // ラウンドの略し方：勝者側 W1・W2…／敗者側 L1・L2…／グランドファイナル GF・リセット GF2（本人 11/22）
+  const sgRoundAbbr = (x) => {
+    const tx = String(x?.fullRoundText || '');
+    if (/grand final reset|reset/i.test(tx) || /リセット/.test(tx)) return 'GF2';
+    if (/grand final/i.test(tx) || /グランドファイナル/.test(tx)) return 'GF';
+    return typeof x?.round === 'number' ? (x.round > 0 ? 'W' + x.round : 'L' + (-x.round)) : '?';
+  };
+  // 試合どうしを灰色のかぎ形の線でつなぐ（本人 11/22「ちゃんと線引いてください」）。前の試合の箱の右の真ん中 → 次の試合のその人の行の左
+  function sgLines(el) {
+    const cv = el?.querySelector('.sgCanvas'); if (!cv) return;
+    cv.querySelector('svg.sgLines')?.remove();
+    const col = cv.querySelector('.sgCol'); if (!col) return;
+    const k = col.getBoundingClientRect().width / 200 || 1;   // 見た目の大きさ ÷ 作りの大きさ（列は 200px）＝拡大の倍率
+    const cr = cv.getBoundingClientRect(), X = (v) => ((v - cr.left) / k).toFixed(1), Y = (v) => ((v - cr.top) / k).toFixed(1);
+    const boxes = new Map([...cv.querySelectorAll('.sgSet[data-id]')].map(b => [b.dataset.id, b]));
+    const d = [];
+    cv.querySelectorAll('.sgRow[data-src]').forEach(row => {
+      const sb = boxes.get(row.dataset.src); if (!sb) return;
+      const a = sb.getBoundingClientRect(), b = row.getBoundingClientRect();
+      if (b.left <= a.right) return;
+      const x1 = +X(a.right), y1 = +Y(a.top + a.height / 2), x2 = +X(b.left), y2 = +Y(b.top + b.height / 2), mx = (x1 + (x2 - x1) / 2).toFixed(1);
+      d.push(`M${x1} ${y1}H${mx}V${y2}H${x2}`);
+    });
+    if (!d.length) return;
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('class', 'sgLines');
+    svg.setAttribute('width', (cr.width / k).toFixed(0)); svg.setAttribute('height', (cr.height / k).toFixed(0));
+    const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    p.setAttribute('d', d.join(''));
+    svg.appendChild(p); cv.prepend(svg);
+  }
   const seedTxt = (n) => Number.isFinite(n) ? String(n) : '';
   // 試合の箱。o＝{ find, info（sgBracket）, dest：行き先を出す, proj：予想を出す }
   function sgSetHtml(x, o) {
@@ -1084,15 +1120,16 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
     const pr = proj ? info.pair(x) : null;
     const from = [0, 1].map(i => dest || proj ? info.src(x, (x.slots || [])[i]) : null);
     const reset = (dest || proj) && info.isReset(x);
-    const fromTxt = (f) => !f ? '' : f.away ? 'ほかのプールから' : `${f.set.identifier || '?'} の${f.lose ? '負け' : '勝者'}`;
+    const fromTxt = (f) => !f ? '' : f.away ? 'ほかのプールから' : `${f.set.identifier || '?'} の${f.lose ? '敗者' : '勝者'}`;
     // カーソルを当てたときの説明：「A（勝者側1回戦）の負けた方：Alpha と Hotel」（本人 11/22）
     const who = (f) => {
       if (!f) return '';
       if (f.away) return 'ほかのプールの試合から来ます';
       const pp = info.pair(f.set), p = pp.map(q => q ? q.en.name + (q.proj ? '（予想）' : '') : '未定');
       const wi = f.set.winnerId == null ? -1 : pp.findIndex(q => q && String(q.en.id) === String(f.set.winnerId));
-      if (wi >= 0) { const q = pp[f.lose ? 1 - wi : wi]; if (q) return `${f.set.identifier || '?'}（${f.set.fullRoundText || ''}）の${f.lose ? '負けた方' : '勝った方'}：${q.en.name}（決まり・${p[0]} と ${p[1]} の試合）`; }   // 決まっていれば1人に（Codex 指摘）
-      return `${f.set.identifier || '?'}（${f.set.fullRoundText || ''}）の${f.lose ? '負けた方' : '勝った方'}：${p[0]} と ${p[1]}`;
+      const head = `${f.set.identifier || '?'}（${sgRoundAbbr(f.set)}）の${f.lose ? '敗者' : '勝者'}`;
+      if (wi >= 0) { const q = pp[f.lose ? 1 - wi : wi]; if (q) return `${head}\n${q.en.name}`; }   // 決まっていれば来る人1人（Codex 指摘）
+      return `${head}\n${p[0]}\n${p[1]}`;   // 3行：「D（W1）の敗者」／1人め／2人め（本人 11/22）
     };
     const rows = [0, 1].map(i => {
       const sl = (x.slots || [])[i], se = info ? info.slotEn(sl) : (sl?.entrant || sl?.seed?.entrant) ? { en: sl.entrant || sl.seed.entrant, kind: "real" } : null, en = se && se.kind !== 'pseudo' ? se.en : null, pseudo = se?.kind === 'pseudo' ? se.en : null;
@@ -1101,9 +1138,11 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
       let nm;
       if (en) nm = `<span class="nm" title="${esc(en.name || '')}">${sd}${esc(en.name)}</span>`;
       else if (pseudo) nm = `<span class="nm" title="${esc(pseudo.name)}（まだ選手が決まっていません）">${esc(pseudo.name)}</span>`;
-      else if (proj && pr[i]) nm = `<span class="nm proj" title="予想：${esc(pr[i].en.name || '')}${from[i] ? `\n${esc(who(from[i]))}` : ''}">${sd}${esc(pr[i].en.name)}</span>`;
+      else if (proj && pr[i]) nm = `<span class="nm proj" title="${from[i] ? esc(who(from[i])) : `予想：${esc(pr[i].en.name || '')}`}">${sd}${esc(pr[i].en.name)}</span>`;
       else nm = `<span class="nm"${dest && !reset && from[i] ? ` title="${esc(who(from[i]))}"` : ''}>${dest && reset ? '（リセットのときだけ）' : dest && from[i] ? esc(fromTxt(from[i])) : '未定'}</span>`;
-      return `<div class="sgRow${win ? ' win' : ''}${en ? '' : ' tbd'}">${nm}<span class="sc">${esc(scoreText(sl))}</span></div>`;
+      const f = from[i], line = reset ? i === 0 && f?.set && !!(info.pair(x)[0] || info.pair(x)[1])   // リセットは1本だけ・行われるときだけ（Codex 指摘）
+        : f?.set && !f.lose && (f.set.round > 0) === (x.round > 0);   // 同じ側で勝った人が進むときだけ線を引く
+      return `<div class="sgRow${win ? ' win' : ''}${en ? '' : ' tbd'}"${line ? ` data-src="${esc(f.set.id)}"` : ''}>${nm}<span class="sc">${esc(scoreText(sl))}</span></div>`;
     }).join('');
     let meta = '';
     if (dest) {   // 上の行：試合の記号と、負けた人の行き先（勝者側）／どこから来るか（予想と両方のとき）
@@ -1111,10 +1150,10 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
       const comeFs = proj && !reset ? from.filter((f, i) => f && !info.slotEn((x.slots || [])[i])) : [];
       const comes = comeFs.map(fromTxt).join('・');
       // 両方オンのときは「どこから来るか」と「負けたらどこへ」を両方出す（Codex 指摘）
-      const right = [reset ? `リセット（${from[0]?.set?.identifier || '?'} で敗者側の人が勝ったとき）` : comes ? `← ${comes}` : '', to ? `負けたら → ${to.identifier || '?'}` : ''].filter(Boolean).join('　');
-      meta = `<div class="sgMeta"><span class="id">${esc(x.identifier || '')}</span>${live ? `<span class="lv">${x.state === 6 ? '呼び出し中' : '対戦中'}</span>` : ''}${right ? `<span class="to" title="${esc([...comeFs.map(who), to ? `負けた人は敗者側の ${to.identifier || '?'}（${to.fullRoundText || ''}）へ` : ''].filter(Boolean).join('\n') || right)}">${esc(right)}</span>` : ''}</div>`;
+      const right = [reset ? `リセット（${from[0]?.set?.identifier || '?'} で敗者側の人が勝ったとき）` : comes ? `← ${comes}` : '', to ? `敗者 → ${to.identifier || '?'}` : ''].filter(Boolean).join('　');
+      meta = `<div class="sgMeta"><span class="id">${esc(x.identifier || '')}</span>${live ? `<span class="lv">${x.state === 6 ? '呼び出し中' : '対戦中'}</span>` : ''}${right ? `<span class="to" title="${esc([...comeFs.map(who), to ? `敗者は ${to.identifier || '?'}（${sgRoundAbbr(to)}）へ` : ''].filter(Boolean).join('\n\n') || right)}">${esc(right)}</span>` : ''}</div>`;
     }
-    return `<div class="sgSet${live ? ' live' : ''}${hit ? ' hit' : find ? ' dim' : ''}">${live && !dest ? `<span class="tag">${x.state === 6 ? '呼び出し中' : '対戦中'}</span>` : ''}${meta}${rows}</div>`;
+    return `<div class="sgSet${live ? ' live' : ''}${hit ? ' hit' : find ? ' dim' : ''}" data-id="${esc(x.id)}">${live && !dest ? `<span class="tag">${x.state === 6 ? '呼び出し中' : '対戦中'}</span>` : ''}${meta}${rows}</div>`;
   }
   // ---- サイドバーの中を描く（keep＝スクロール位置を保つ）----
   // 上の帯（sgBar）・表（sgBody）・出典（sgFoot）を、状態に合わせて描きかえる。
@@ -1135,6 +1174,7 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
       if (keep) { body.scrollLeft = sl; body.scrollTop = st; }
       else if ((t.sgFind || '').trim()) body.querySelector('.sgSet.hit')?.scrollIntoView({ block: 'center', inline: 'center' });
     }
+    if (view.table) sgLines(el);
     sgRestoreFocus(el, focus);
   }
   const sgSourceHtml = (t) => `データ：<a href="${esc(t.slug ? `https://www.start.gg/${t.slug}${t.sgPhase && t.sgGroup ? `/brackets/${t.sgPhase}/${t.sgGroup}` : ''}` : 'https://www.start.gg/')}" target="_blank" rel="noopener">start.gg</a>`;
