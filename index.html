@@ -429,7 +429,6 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
           <button class="solo" title="この画面だけ鳴らす">🎯<span class="lbl"> これだけ鳴らす</span></button>
           <input class="vol" type="range" min="0" max="100" value="${t.vol}" title="音量">
           <span class="name"></span>
-          <button class="bigBtn" title="この画面を大きくする（1番の位置へ）">⭐<span class="lbl"> 大きく表示</span></button>
           <button class="hide" title="隠す（外さない）">👁<span class="lbl"> 隠す</span></button>
           <button class="x" title="外す">✕</button>
         </div>
@@ -438,7 +437,6 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
     el.querySelector('.snd').onclick = () => setMuted(t.key, !t.muted);
     el.querySelector('.solo').onclick = () => solo(t.key);
     el.querySelector('.vol').oninput = (e) => { t.vol = +e.target.value; try { players[t.key]?.setVolume(t.vol); } catch {} save(); };
-    el.querySelector('.bigBtn').onclick = () => makeBig(t.key);
     el.querySelector('.hide').onclick = () => setHidden(t.key, true);
     el.querySelector('.x').onclick = () => removeTile(t.key);
     const handle = el.querySelector('.handle');
@@ -606,11 +604,7 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
   function makeFirst(key) {
     const first = visible()[0]; if (first && first.key !== key) swap(first.key, key);
   }
-  // 「大きく」＝その画面を1番の位置へ（今の1番と入れかえ）。全部同じのときは「1つ大きく」に切りかえる
-  function makeBig(key) {
-    makeFirst(key);
-    if (state.layout !== 'focus') { state.layout = 'focus'; render(); save(); }
-  }
+  // （2026-11-22 本人「⭐だけ消す」：⭐大きく表示のボタンは、番号ボタンを押すのと同じなので消した）
   // 2026-11-22 本人「大画面のやつの音声だけが流れるように」「全部同じのときは1番だけ」「増やすのは俺の方で」
   // → 1番（大きい画面）が入れかわったとき・並べ方を変えたときだけ、1番の音だけにする。そのあと本人が鳴らした分はそのまま。
   let lastFirst;
@@ -1184,7 +1178,6 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
       const vol = el.querySelector('.vol');
       if (document.activeElement !== vol && +vol.value !== t.vol) vol.value = t.vol;   // 音を出したときに音量 0→100 に戻した分も、つまみに映す
       el.querySelector('.name').textContent = t.title || '';
-      el.querySelector('.bigBtn').style.display = n < 3 || (focus && i === 0) ? 'none' : '';
     });
     $('#empty').style.display = n ? 'none' : 'flex';
     $('#empty').innerHTML = state.tiles.length && !n
