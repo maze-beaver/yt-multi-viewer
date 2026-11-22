@@ -149,7 +149,17 @@
   .sgRow.win .sc { background: #4a5059; }
   .sgRow.tbd .nm { color: #868e97; font-style: italic; }
   .sgSet.live { border-color: var(--danger); }
-  .sgSet .tag { position: absolute; right: max(30px, 2.5em); top: 0; font-size: max(10px, .8em); background: var(--danger); color: #fff; border-radius: 0 0 4px 4px; padding: 0 5px; line-height: 14px; }
+  /* 行き先・予想（2026-11-22）：色は足さず、灰色の字だけで分ける */
+  .sgMeta { display: flex; align-items: center; gap: 6px; padding: 0 7px; font-size: max(var(--fm, 10px), .85em); line-height: 1.5; color: #9aa1a9; background: #16191d; border-bottom: 1px solid #3a3f46; white-space: nowrap; overflow: hidden; }
+  .sgMeta .id { color: #d2d6db; font-weight: 700; }
+  .sgMeta .lv { color: var(--danger); font-weight: 700; }
+  .sgMeta .to { margin-left: auto; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .sgRow .nm.proj { color: #8b929a; font-style: italic; font-weight: 400; }
+  .sgRow .sd { display: inline-block; min-width: 1.6em; margin-right: 5px; color: #868e97; font-size: max(var(--fm, 10px), .85em); font-style: normal; font-weight: 500; text-align: right; }
+  .sgRow .sd:empty { display: none; }
+  .sgBar .tog.on { background: var(--accent); color: #111; font-weight: 700; border-color: var(--accent); }
+  .sgLegend { color: var(--sub); font-size: 12px; margin: 0 0 8px; }
+  .sgSet .tag { position: absolute; right: max(30px, 2.5em); top: 0; font-size: max(var(--fm, 10px), .8em); background: var(--danger); color: #fff; border-radius: 0 0 4px 4px; padding: 0 5px; line-height: 14px; }
   .sgSet.hit { outline: 2px solid #ffd54a; outline-offset: 1px; }
   .sgSet.dim { opacity: .35; }
   .sgBar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 6px 8px; background: var(--bar); border-bottom: 1px solid var(--line); font-size: 12px; }
@@ -267,7 +277,7 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
     const k = kindOf(t), o = { kind: k, title: t.title, hidden: t.hidden };
     if (k === 'yt') Object.assign(o, { vid: t.vid, start: t.start });
     if (k === 'tw') Object.assign(o, okCh(t.ch) ? { ch: t.ch } : { vod: t.vod, time: t.time });
-    if (k === 'sg') Object.assign(o, { slug: t.slug, sgPhase: t.sgPhase, sgGroup: t.sgGroup, sgSide: t.sgSide, sgZoom: t.sgZoom });
+    if (k === 'sg') Object.assign(o, { slug: t.slug, sgPhase: t.sgPhase, sgGroup: t.sgGroup, sgSide: t.sgSide, sgZoom: t.sgZoom, sgDest: !!t.sgDest, sgProj: !!t.sgProj });
     return o;
   };
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify({
@@ -283,7 +293,7 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
     if (k === 'yt') Object.assign(o, { vid: t.vid, start: Math.max(0, parseInt(t.start, 10) || 0) });
     if (k === 'tw') Object.assign(o, okCh(t.ch) ? { ch: t.ch } : { vod: t.vod, time: okTime(t.time) ? t.time : '' });
     if (k === 'sg') Object.assign(o, { slug: okSlug(t.slug) ? t.slug : '', sgPhase: okId(t.sgPhase) ? t.sgPhase : '', sgGroup: okId(t.sgGroup) ? t.sgGroup : '',
-      sgSide: ['w', 'l'].includes(t.sgSide) ? t.sgSide : 'w', sgZoom: Math.min(1.6, Math.max(0.5, +t.sgZoom || 1)), sgFind: '' });
+      sgSide: ['w', 'l'].includes(t.sgSide) ? t.sgSide : 'w', sgZoom: Math.min(1.6, Math.max(0.5, +t.sgZoom || 1)), sgDest: t.sgDest === true, sgProj: t.sgProj === true, sgFind: '' });
     return o;
   };
   const saved = load(KEY, {});
@@ -768,8 +778,13 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
     phases{ id name bracketType phaseOrder phaseGroups(query:{page:1,perPage:50}){ pageInfo{ totalPages } nodes{ id displayIdentifier bracketType state } } } } }`;
   const Q_PGROUPS = `query($id:ID!,$page:Int!){ phase(id:$id){ phaseGroups(query:{page:$page,perPage:50}){ pageInfo{ totalPages } nodes{ id displayIdentifier bracketType state } } } }`;
   const Q_TOUR = `query($slug:String){ tournament(slug:$slug){ name slug events{ name slug numEntrants } } }`;
+  // 試合の一覧。シード（seed・initialSeedNum）と前の試合の勝ち/負け（prereqPlacement）は、行き先と予想に使う
   const Q_SETS = `query($id:ID!,$page:Int!){ phaseGroup(id:$id){ id bracketType sets(page:$page, perPage:60, sortType:STANDARD){ pageInfo{ totalPages }
+    nodes{ id round fullRoundText state winnerId identifier slots{ prereqId prereqType prereqPlacement seed{ seedNum } entrant{ id name initialSeedNum } standing{ stats{ score{ value } } } } } } } }`;
+  // 上の項目が使えなかったときの予備（表はこれまでどおり出す）
+  const Q_SETS_BASIC = `query($id:ID!,$page:Int!){ phaseGroup(id:$id){ id bracketType sets(page:$page, perPage:60, sortType:STANDARD){ pageInfo{ totalPages }
     nodes{ id round fullRoundText state winnerId identifier slots{ prereqId prereqType entrant{ id name } standing{ stats{ score{ value } } } } } } } }`;
+  let sgRich = true;
   const errText = (e) => e.code === 'auth' ? '鍵（トークン）が正しくないか、期限が切れています。下の欄から貼り直してください。'
     : e.code === 'rate' ? 'start.gg の回数の上限に当たりました。1分ほどあとに自動でもう一度読みます。'
     : e.code === 'net' ? 'start.gg につながりませんでした。ネットのつながりを確かめてください（1分ごとに読み直します）。'
@@ -894,7 +909,13 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
     try {
       let page = 1, total = 1, all = [], bt = null, real = 1;
       do {
-        const d = await gql(Q_SETS, { id: group, page }, job);
+        let d;
+        try { d = await gql(sgRich ? Q_SETS : Q_SETS_BASIC, { id: group, page }, job); }
+        catch (e) {   // 足した項目を start.gg が受けつけないとき：予備の問い合わせで最初から読み直す
+          if (!(sgRich && e.code === 'api' && /field|argument|type/i.test(e.msg || ''))) throw e;
+          sgRich = false; page = 1; all = [];
+          d = await gql(Q_SETS_BASIC, { id: group, page }, job);
+        }
         if (!job.mine()) return;
         const pg = d.phaseGroup; if (!pg) throw { code: 'none' };
         bt = pg.bracketType; real = pg.sets?.pageInfo?.totalPages || 1; total = Math.min(real, 50);   // 60試合×50ページ＝3000試合まで
@@ -921,7 +942,7 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
     const find = (t.sgFind || '').trim().toLowerCase();
     let first = null;
     el.querySelectorAll('.sgSet').forEach(box => {
-      const hit = !!find && [...box.querySelectorAll('.nm')].some(n => (n.title || '').toLowerCase().includes(find));
+      const hit = !!find && [...box.querySelectorAll('.nm:not(.proj)')].some(n => (n.title || '').toLowerCase().includes(find));
       box.classList.toggle('hit', hit); box.classList.toggle('dim', !!find && !hit);
       if (hit && !first) first = box;
     });
@@ -939,6 +960,8 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
     else if (act === 'ev') sgSetUrl(t, `https://www.start.gg/${b.dataset.slug}`);
     else if (act === 'reload') { s.ev ? sgLoadSets(t) : sgLoadEvent(t); }
     else if (act === 'side') { t.sgSide = b.dataset.side; sgDraw(t, true); save(); }
+    else if (act === 'dest') { t.sgDest = !t.sgDest; sgDraw(t, true); save(); }
+    else if (act === 'proj') { t.sgProj = !t.sgProj; sgDraw(t, true); save(); }
     else if (act === 'pgPrev') sgStepPool(t, -1);
     else if (act === 'pgNext') sgStepPool(t, 1);
     else if (act === 'zin') sgZoom(t, 0.1);
@@ -979,16 +1002,100 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
     return cols;
   }
   const scoreText = (sl) => { const v = sl?.standing?.stats?.score?.value; return v == null ? '' : v < 0 ? 'DQ' : String(v); };
-  function sgSetHtml(x, find) {
+  // ---- 行き先と予想（本人 11/22「どこで負けた人がどこに来る」「start.gg と同じ…シード同士になる」）----
+  // 各枠が「どの試合の勝者／敗者か」を調べ、まだ決まっていない枠には「シードが上の人が勝つ」としたときに来る人を入れる。
+  // 終わった試合の結果（番狂わせも）はそのまま使い、その先だけを予想する（start.gg の予想表示と同じ考え方）。
+  function sgBracket(sets) {
+    const byId = new Map(sets.map(x => [String(x.id), x]));
+    const seedOf = new Map();   // 選手 → シードの番号（このフェーズのシード、なければ大会の最初のシード）
+    sets.forEach(x => (x.slots || []).forEach(sl => {
+      const en = sl?.entrant; if (!en || en.id == null) return;
+      const n = +sl.seed?.seedNum > 0 ? +sl.seed.seedNum : +en.initialSeedNum > 0 ? +en.initialSeedNum : null;
+      const k = String(en.id);
+      if (n != null && (!seedOf.has(k) || sl.seed?.seedNum)) seedOf.set(k, n);
+    }));
+    // グランドファイナルのリセット：2つの枠がどちらも同じ試合（グランドファイナル）から来る試合（Codex 指摘）
+    const isReset = (x) => { const [a, b] = x.slots || []; return !!(a && b && a.prereqType === 'set' && b.prereqType === 'set' && a.prereqId != null && String(a.prereqId) === String(b.prereqId)); };
+    // 枠の出どころ：{ set：前の試合, lose：その試合の敗者か }／ほかのプールなど、この表にない試合から来るときは { away: true }
+    const src = (x, sl) => {
+      if (!sl || sl.prereqType !== 'set' || sl.prereqId == null) return null;
+      const from = byId.get(String(sl.prereqId)); if (!from) return { away: true };
+      const lose = sl.prereqPlacement != null ? +sl.prereqPlacement >= 2 : (from.round > 0 && x.round < 0);   // 予備：勝者側から敗者側へ＝負けた人
+      return { set: from, lose };
+    };
+    const loserTo = new Map();   // 勝者側の試合 → 負けた人が行く敗者側の試合（グランドファイナル→リセットは入れない）
+    sets.forEach(x => { if (x.round >= 0) return; (x.slots || []).forEach(sl => { const f = src(x, sl); if (f?.set && f.lose && f.set.round > 0 && !loserTo.has(String(f.set.id))) loserTo.set(String(f.set.id), x); }); });
+    const rank = (en) => en ? (seedOf.get(String(en.id)) ?? Infinity) : Infinity;
+    const memo = new Map(), busy = new Set();
+    // 試合の2人（本物、または予想）。{ en, proj }
+    const pair = (x) => {
+      const k = String(x.id); if (memo.has(k)) return memo.get(k);
+      if (busy.has(k)) return [null, null];   // つながりが輪になっていたら止める
+      busy.add(k);
+      const out = isReset(x) ? resetPair(x) : [0, 1].map(i => {
+        const sl = (x.slots || [])[i];
+        if (sl?.entrant) return { en: sl.entrant, proj: false };
+        const f = src(x, sl); if (!f?.set) return null;
+        const r = result(f.set); const p = f.lose ? r.lose : r.win;
+        return p ? { en: p.en, proj: true } : null;
+      });
+      busy.delete(k); memo.set(k, out); return out;
+    };
+    // リセット：グランドファイナルで敗者側から来た人が勝ったときだけ、同じ2人がもう一度戦う（勝者側の人が勝てばリセットはない）
+    const resetPair = (x) => {
+      const sl = x.slots || [];
+      if (sl[0]?.entrant || sl[1]?.entrant) return [0, 1].map(i => sl[i]?.entrant ? { en: sl[i].entrant, proj: false } : null);
+      const gf = byId.get(String(sl[0].prereqId)); if (!gf) return [null, null];
+      const gp = pair(gf), r = result(gf); if (!r.win) return [null, null];
+      let li = (gf.slots || []).findIndex(s2 => { const f = src(gf, s2); return f?.set && f.set.round < 0; });
+      if (li < 0) li = 1;   // 分からないときは下の枠が敗者側から来た人
+      if (r.win !== gp[li]) return [null, null];
+      return gp.map(p => p ? { en: p.en, proj: true } : null);
+    };
+    // 試合の勝者・敗者（終わっていれば本当の結果、まだならシードが上の人が勝つ）
+    const result = (x) => {
+      const [a, b] = pair(x);
+      if (x.winnerId != null) {
+        const w = [a, b].find(p => p && String(p.en.id) === String(x.winnerId));
+        if (w) { const l = w === a ? b : a; return { win: w, lose: l }; }
+      }
+      if (!a || !b) return {};   // 片方が分からないときは予想しない
+      const ra = rank(a.en), rb = rank(b.en);
+      const aw = ra === Infinity || rb === Infinity || ra <= rb;   // シードが同じ・どちらかが分からないときは上の枠が勝つ（本人 11/22「上の枠がシード高いはずだからその通りでいい」）
+      return { win: aw ? a : b, lose: aw ? b : a };
+    };
+    return { byId, src, loserTo, pair, rank, isReset, noSeed: seedOf.size === 0 };
+  }
+  const seedTxt = (n) => Number.isFinite(n) ? String(n) : '';
+  // 試合の箱。o＝{ find, info（sgBracket）, dest：行き先を出す, proj：予想を出す }
+  function sgSetHtml(x, o) {
+    const { find, info, dest, proj } = o;
     const live = x.state === 2 || x.state === 6;
     const names = (x.slots || []).map(sl => sl?.entrant?.name || '');
     const hit = find && names.some(n => n.toLowerCase().includes(find));
+    const pr = proj ? info.pair(x) : null;
+    const from = [0, 1].map(i => dest || proj ? info.src(x, (x.slots || [])[i]) : null);
+    const reset = (dest || proj) && info.isReset(x);
+    const fromTxt = (f) => !f ? '' : f.away ? 'ほかのプールから' : `${f.set.identifier || '?'} の${f.lose ? '負け' : '勝者'}`;
     const rows = [0, 1].map(i => {
       const sl = (x.slots || [])[i], en = sl?.entrant;
       const win = en && x.winnerId != null && String(x.winnerId) === String(en.id);
-      return `<div class="sgRow${win ? ' win' : ''}${en ? '' : ' tbd'}"><span class="nm" title="${esc(en?.name || '')}">${en ? esc(en.name) : '未定'}</span><span class="sc">${esc(scoreText(sl))}</span></div>`;
+      const sd = proj ? `<span class="sd">${esc(seedTxt(info.rank(en || pr[i]?.en)))}</span>` : '';
+      let nm;
+      if (en) nm = `<span class="nm" title="${esc(en.name || '')}">${sd}${esc(en.name)}</span>`;
+      else if (proj && pr[i]) nm = `<span class="nm proj" title="予想：${esc(pr[i].en.name || '')}${from[i] ? `（${esc(fromTxt(from[i]))}）` : ''}">${sd}${esc(pr[i].en.name)}</span>`;
+      else nm = `<span class="nm">${dest && reset ? '（リセットのときだけ）' : dest && from[i] ? esc(fromTxt(from[i])) : '未定'}</span>`;
+      return `<div class="sgRow${win ? ' win' : ''}${en ? '' : ' tbd'}">${nm}<span class="sc">${esc(scoreText(sl))}</span></div>`;
     }).join('');
-    return `<div class="sgSet${live ? ' live' : ''}${hit ? ' hit' : find ? ' dim' : ''}">${live ? `<span class="tag">${x.state === 6 ? '呼び出し中' : '対戦中'}</span>` : ''}${rows}</div>`;
+    let meta = '';
+    if (dest) {   // 上の行：試合の記号と、負けた人の行き先（勝者側）／どこから来るか（予想と両方のとき）
+      const to = x.round > 0 ? info.loserTo.get(String(x.id)) : null;
+      const comes = proj && !reset ? from.filter((f, i) => f && !(x.slots || [])[i]?.entrant).map(fromTxt).join('・') : '';
+      // 両方オンのときは「どこから来るか」と「負けたらどこへ」を両方出す（Codex 指摘）
+      const right = [reset ? `リセット（${from[0]?.set?.identifier || '?'} で敗者側の人が勝ったとき）` : comes ? `← ${comes}` : '', to ? `負けたら → ${to.identifier || '?'}` : ''].filter(Boolean).join('　');
+      meta = `<div class="sgMeta"><span class="id">${esc(x.identifier || '')}</span>${live ? `<span class="lv">${x.state === 6 ? '呼び出し中' : '対戦中'}</span>` : ''}${right ? `<span class="to" title="${esc(right + (to ? `（負けた人は敗者側の ${to.identifier || '?'}・${to.fullRoundText || ''} へ）` : ''))}">${esc(right)}</span>` : ''}</div>`;
+    }
+    return `<div class="sgSet${live ? ' live' : ''}${hit ? ' hit' : find ? ' dim' : ''}">${live && !dest ? `<span class="tag">${x.state === 6 ? '呼び出し中' : '対戦中'}</span>` : ''}${meta}${rows}</div>`;
   }
   // ---- サイドバーの中を描く（keep＝スクロール位置を保つ）----
   // 上の帯（sgBar）・表（sgBody）・出典（sgFoot）を、状態に合わせて描きかえる。
@@ -1068,15 +1175,23 @@ if (!IS_TEST) { document.getElementById('testBadge').remove(); document.title = 
     const pgSel = gs.length > 1 ? `<button data-act="pgPrev" title="前のプール（← キー）">◀</button><select class="pg" title="プール">${gs.map(g => `<option value="${esc(g.id)}"${String(g.id) === t.sgGroup ? ' selected' : ''}>プール ${esc(g.displayIdentifier)}${g.state === 2 ? '（進行中）' : g.state === 3 ? '（終了）' : ''}</option>`).join('')}</select><button data-act="pgNext" title="次のプール（→ キー）">▶</button>` : '';
     const sideSeg = dbl && !rr ? `<div class="seg"><button data-act="side" data-side="w" class="${side === 'w' ? 'on' : ''}">勝者側</button><button data-act="side" data-side="l" class="${side === 'l' ? 'on' : ''}">敗者側</button></div>` : '';
     const find = (t.sgFind || '').trim().toLowerCase();
-    const bar = tools(`${phSel}${pgSel}${sideSeg}<button data-act="zout" title="小さく（ctrl＋ホイールでも）">－</button><button data-act="zin" title="大きく">＋</button>
+    // 行き先・予想の切りかえ（総当たりでは出さない）
+    const dest = !rr && !!t.sgDest, proj = !rr && !!t.sgProj;
+    const togs = rr ? '' : `<button data-act="dest" class="tog${dest ? ' on' : ''}" aria-pressed="${dest}" title="負けた人がどこへ行くか・どこから来るかを出す">行き先</button>`
+      + `<button data-act="proj" class="tog${proj ? ' on' : ''}" aria-pressed="${proj}" title="まだ決まっていない枠に、シードが上の人が勝ち進んだときに来る人を薄く出す（終わった試合の結果は反映）">予想</button>`;
+    const bar = tools(`${phSel}${pgSel}${sideSeg}${togs}<button data-act="zout" title="小さく（ctrl＋ホイールでも）">－</button><button data-act="zin" title="大きく">＋</button>
       <input class="find" type="search" placeholder="選手名で目立たせる" value="${esc(t.sgFind || '')}">`);
     const warn = (s.err ? `<div class="sgMsg bad" style="margin:0 0 8px">⚠ ${esc(errText(s.err))}</div>` : '') + (s.partial ? '<div class="sgMsg note" style="margin:0 0 8px">試合が多いため、はじめの 3000 試合だけ出しています。</div>' : '');
     if (!sets.length) return { bar, body: warn + `<div class="sgMsg">${s.loading ? '読み込み中…' : 'このプールにはまだ対戦がありません（組み合わせの発表前かもしれません）。'}</div>` };
     const cols = rr ? sgColumns(sets.map(x => ({ ...x, round: Math.abs(x.round) || 1 })), 'w') : sgColumns(sets, side);
     const zoom = Math.min(1.6, Math.max(0.5, +t.sgZoom || 1));
     const fsN = Math.max(12, 10 / zoom);   // 縮めても、画面の上で字が 10px を下回らないように
-    const colH = Math.max(1, ...cols.map(c => c.length)) * Math.max(60, Math.round(fsN * 4 + 14));   // 1試合（2行）ぶんの高さ＋すき間
-    const body = warn + `<div class="sgCanvas" style="zoom:${zoom};--fs:${fsN.toFixed(2)}px">${cols.map(c => `<div class="sgCol"><div class="sgColH" title="${esc(c[0]?.fullRoundText || '')}">${esc(c[0]?.fullRoundText || '')}</div><div class="sgSets" style="min-height:${colH}px">${c.map(x => sgSetHtml(x, find)).join('')}</div></div>`).join('')}</div>`;
+    const fmN = Math.ceil(1000 / zoom) / 100;   // 切り上げ（丸めで 9.99px にならないように・Codex 指摘）   // 小さい字（記号・シード）も画面の上で 10px を下回らないように
+    const colH = Math.max(1, ...cols.map(c => c.length)) * (Math.max(60, Math.round(fsN * 4 + 14)) + (dest ? Math.round(Math.max(fmN, fsN * 0.85) * 1.5) : 0));   // 1試合（2行＋上の行）ぶんの高さ＋すき間
+    const o = { find, dest, proj, info: dest || proj ? sgBracket(sets) : null };
+    const legend = !proj ? '' : o.info.noSeed ? '<div class="sgLegend">斜めの薄い字＝予想（シードが読めなかったため、上の枠の人が勝ち進んだとき）</div>'
+      : '<div class="sgLegend">斜めの薄い字＝予想（シードが上の人が勝ち進んだとき）・名前の前の数字＝シード</div>';
+    const body = warn + legend + `<div class="sgCanvas${proj ? ' withSeed' : ''}" style="zoom:${zoom};--fs:${fsN.toFixed(2)}px;--fm:${fmN}px">${cols.map(c => `<div class="sgCol"><div class="sgColH" title="${esc(c[0]?.fullRoundText || '')}">${esc(c[0]?.fullRoundText || '')}</div><div class="sgSets" style="min-height:${colH}px">${c.map(x => sgSetHtml(x, o)).join('')}</div></div>`).join('')}</div>`;
     return { bar, body, table: true };
   }
   // 15秒ごとに見て、前に読んでから1分たっていたら読み直す（サイドバーを開いているときだけ・この画面が裏にあるときは読まない）
